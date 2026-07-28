@@ -1,0 +1,45 @@
+services:
+  db-auth:
+    image: postgres:16-alpine
+    container_name: bitserves_db_auth
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB_AUTH}
+    volumes:
+      - db_auth_data:/var/lib/postgresql/data
+    ports:
+      - "15401:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  auth-service:
+    build: ./services/auth
+    container_name: bitserves_auth
+    env_file: .env
+    expose:
+      - "8001"
+    ports:
+      - "${AUTH_SERVICE_PORT}:8001"
+    depends_on:
+      db-auth:
+        condition: service_healthy
+    restart: unless-stopped
+
+  gateway:
+    image: nginx:alpine
+    container_name: bitserves_gateway
+    ports:
+      - "8000:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - auth-service
+    restart: unless-stopped
+
+volumes:
+  db_auth_data:
