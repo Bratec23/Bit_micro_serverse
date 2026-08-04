@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.audit import log_event
 from app.config import settings
 from app.database import get_db
-from app.models import Department, LoginAudit, PasswordResetToken, Position, User
+from app.models import Department, Grade, LoginAudit, PasswordResetToken, Position, User
 from app.rate_limit import forgot_limiter, login_limiter, register_limiter, reset_limiter
 from app.security import (
     create_access_token,
@@ -92,6 +92,25 @@ class PositionBrief(BaseModel):
     name: str
 
 
+class TierBrief(BaseModel):
+    min_pct: float
+    bonus_percent: float
+
+
+class GradeBrief(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    base_salary: Optional[float] = None
+    bonus_percent: Optional[float] = None
+    service_factor: Optional[float] = None
+    has_plan: Optional[bool] = None
+    plan_margin: Optional[float] = None
+    tiers: list[TierBrief] = []
+    kpi2_enabled: bool = False
+    kpi2_bonus_percent: float = 5.0
+    kpi2_min_retention_pct: float = 80.0
+
+
 class UserOut(BaseModel):
     id: int
     email: str
@@ -99,6 +118,12 @@ class UserOut(BaseModel):
     role: str
     department: DepartmentBrief
     position: PositionBrief
+    grade: Optional[GradeBrief] = None
+
+
+class UpdateMeRequest(BaseModel):
+    full_name: Optional[str] = Field(default=None, max_length=255)
+    position_id: Optional[int] = None
     grade_id: Optional[str] = None
 
 
@@ -144,6 +169,22 @@ class ResetPasswordRequest(BaseModel):
 
 
 def _user_out(user: User) -> dict:
+    grade_obj = user.grade
+    grade_dict = None
+    if grade_obj:
+        grade_dict = {
+            "id": grade_obj.id,
+            "name": grade_obj.name,
+            "base_salary": float(grade_obj.base_salary),
+            "bonus_percent": float(grade_obj.bonus_percent),
+            "service_factor": float(grade_obj.service_factor),
+            "has_plan": bool(grade_obj.has_plan),
+            "plan_margin": (float(grade_obj.plan_margin) if grade_obj.plan_margin is not None else None),
+            "tiers": [{"min_pct": float(t.min_pct), "bonus_percent": float(t.bonus_percent)} for t in grade_obj.tiers] if grade_obj.tiers else [],
+            "kpi2_enabled": bool(grade_obj.kpi2_enabled),
+            "kpi2_bonus_percent": float(grade_obj.kpi2_bonus_percent),
+            "kpi2_min_retention_pct": float(grade_obj.kpi2_min_retention_pct),
+        }
     return {
         "id": user.id,
         "email": user.email,
@@ -158,12 +199,22 @@ def _user_out(user: User) -> dict:
             "id": user.position.id,
             "name": user.position.name,
         },
-        "grade_id": user.grade_id,
+        "grade": grade_dict,
+    }
+
+
+def _token_claims(user: User) -> dict:
+    return {
+        "email": user.email,
+        "role": user.role,
+        "department_id": user.department_id,
+        "full_name": user.full_name,
     }
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
-    user_id = decode_access_token(token)
+    payload = decode_access_token(token)
+    user_id = payload.get("sub") if payload else None
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Недействительный токен")
     try:
@@ -223,7 +274,7 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
     db.add(user)
     db.commit()
     db.refresh(user)
-    token = create_access_token(subject=str(user.id))
+    token = create_access_token(subject=str(user.id), claims=_token_claims(user))
     log_event(db, request, "register", user.email, success=True, user_id=user.id)
     return TokenOut(access_token=token, user=_user_out(user))
 
@@ -238,13 +289,32 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     if not user.is_active:
         log_event(db, request, "login", payload.email, success=False, user_id=user.id, detail="deactivated")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Учётная запись деактивирована")
-    token = create_access_token(subject=str(user.id))
+    token = create_access_token(subject=str(user.id), claims=_token_claims(user))
     log_event(db, request, "login", user.email, success=True, user_id=user.id)
     return TokenOut(access_token=token, user=_user_out(user))
 
 
 @router.get("/me", response_model=UserOut)
 def me(current: User = Depends(get_current_user)):
+    return _user_out(current)
+
+
+@router.put("/me", response_model=UserOut)
+def update_me(payload: UpdateMeRequest, db: Session = Depends(get_db), current: User = Depends(get_current_user)):
+    if payload.full_name is not None and payload.full_name.strip():
+        current.full_name = payload.full_name.strip()
+    if payload.position_id is not None:
+        pos = db.get(Position, payload.position_id)
+        if not pos or not pos.is_active or pos.department_id != current.department_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Должность не соответствует отделу")
+        current.position_id = pos.id
+    if payload.grade_id is not None:
+        grade = db.get(Grade, payload.grade_id)
+        if not grade or not grade.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд не найден")
+        current.grade_id = grade.id
+    db.commit()
+    db.refresh(current)
     return _user_out(current)
 
 

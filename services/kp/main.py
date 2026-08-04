@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,7 +7,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import engine, init_db
-from app.routers import admin, auth, catalog, internal
+from app.routers import kp
 
 
 @asynccontextmanager
@@ -40,14 +39,11 @@ def health():
         status = "degraded"
     return {
         "status": status,
-        "service": "auth-service",
+        "service": "kp-service",
         "version": "0.1.0",
         "time": datetime.now(timezone.utc).isoformat(),
         "checks": {"database": "ok" if db_ok else "fail"},
     }
 
 
-app.include_router(catalog.router)
-app.include_router(auth.router)
-app.include_router(admin.router)
-app.include_router(internal.router)
+app.include_router(kp.router)

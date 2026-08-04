@@ -1,56 +1,117 @@
-# Bit_micro_serverse
+# Бит.Serves — микросервисная платформа
 
-Микросервисная архитектура платформы Бит.Serves.
+Единая среда инструментов отдела продаж: расчёт заработной платы, дашборды руководителя, конструктор коммерческих предложений. Приложение для пользователя — монолит (одна витрина, один вход), внутри — независимые сервисы, каждый в своём контуре со своей базой данных.
 
-## Структура
+## Архитектура
 
 ```
-Bit_micro_serverse/
- ├── services/                 # каждый сервис — отдельный процесс
- │   └── auth/                 # auth-service (порт 8001) — JWT, регистрация, логин, аудит
- │       ├── main.py
- │       ├── config.py
- │       ├── database.py
- │       ├── models.py
- │       ├── security.py
- │       ├── audit.py
- │       ├── rate_limit.py
- │       ├── seed.py
- │       ├── Dockerfile
- │       └── routers/
- │           └── auth.py
- ├── shared/                   # общие контракты (JWT-формат, shared-types)
- │   └── jwt_contract.py
- ├── nginx/                    # API gateway
- │   └── nginx.conf
- ├── docker-compose.yml        # поднимает все сервисы
- ├── .env.example
- └── README.md
+                        ┌──────────────────────────┐
+ Браузер (SPA)  ──────► │  Gateway (nginx / local) │
+                        └───────────┬──────────────┘
+             /api/auth/*, /api/departments, /api/grades, /api/positions, /api/admin/*
+                                    │
+              ┌─────────────────────┼──────────────────────┬──────────────────┐
+              ▼                     ▼                      ▼                  ▼
+      ┌──────────────┐     ┌──────────────┐       ┌──────────────┐   ┌──────────────┐
+      │ auth-service │     │payroll-service│      │dashboard-svc │   │  kp-service  │
+      │    :8001     │◄────│    :8002     │◄──────│    :8003     │   │    :8004     │
+      └──────┬───────┘     └──────┬───────┘       └──────┬───────┘   └──────┬───────┘
+             │                    │                      │                  │
+         auth_db              payroll_db          (без своей БД —       kp_db
+      (пользователи,       (расчёты ЗП,           агрегирует данные   (документы КП)
+       справочники,         себестоимость)         auth + payroll)
+       грейды, аудит)
 ```
 
-## Принципы
+- **auth-service (8001)** — регистрация/вход (JWT), справочники (отделы, должности, грейды со ступенями плана и KPI 2), администрирование пользователей и грейдов, аудит входов, сброс пароля по коду. Отдаёт другим сервисам профили пользователей через защищённый internal API (`/internal/*`, заголовок `X-Internal-Token`).
+- **payroll-service (8002)** — расчёт ЗП по марже и грейду (ступени выполнения плана, KPI 2 за сохранность клиентов), история и сводка по месяцам, выгрузка расчёта в Excel, учёт себестоимости продаж.
+- **dashboard-service (8003)** — контур руководителя: дашборд отдела, аналитика по месяцам, тепловая карта, водопад маржи, рентабельность, расходы отдела (ФОТ, НДФЛ, взносы, НДС, офис). Свой БД нет — агрегирует данные auth-service и payroll-service по internal API. Доступ только с ролью `head`.
+- **kp-service (8004)** — конструктор коммерческих предложений: хранение документов КП по пользователям, автосохранение из фронтенда. Доступен всем ролям, документы приватны для каждого пользователя.
+- **frontend/** — статический SPA-монолит (`index.html`, `app.js`, `styles.css`) + конструктор КП (`kp.html`).
+- **nginx/** — production-шлюз: отдаёт статику и проксирует `/api/*` в сервисы.
 
-- Каждый сервис — отдельный FastAPI-процесс на свой порт
-- Своя БД у каждого сервиса (SQLite → PostgreSQL)
-- Общий только JWT-секрет и формат payload
-- Связь между сервисами — REST API, не общая БД
-- Nginx как API gateway: маршрутизация по префиксам
-- Docker Compose для запуска
+Каждый сервис — отдельный контур: свой процесс/контейнер, своя БД, свой `Dockerfile`. Межсервисные вызовы — только по HTTP через internal API с токеном.
 
-## Порты
+## Быстрый старт (локально, без Docker)
 
-| Сервис | Порт | Префикс |
-|--------|------|---------|
-| auth-service | 8001 | /api/auth/* |
-| payroll-service | 8002 | /api/payroll/* | (скоро) |
-| dashboard-service | 8003 | /api/head/* | (скоро) |
-| nginx (gateway) | 8000 | / |
-
-## Запуск
+Требования: Python 3.12+ с пакетами из `requirements.txt` сервисов (fastapi, uvicorn, sqlalchemy, httpx, python-jose, bcrypt, openpyxl, pydantic-settings, pydantic[email]).
 
 ```bash
-cp .env.example .env
-docker compose up -d --build
+# из корня репозитория
+python local_launcher.py            # или: npm run dev
 ```
 
-API: http://127.0.0.1:8000/api/auth/health
+Windows: можно просто запустить **`start.bat`** двойным кликом. Остановка — **`stop.bat`** (гасит все процессы на портах 8000–8004) или Ctrl+C в окне лаунчера.
+
+После старта: **http://localhost:8000**
+
+Локальный запуск использует SQLite в `./dev_data/` (по одному .db на сервис) и не требует PostgreSQL. Порты сервисов: 8001–8004, шлюз — 8000 (можно переопределить: `python local_launcher.py --port 8080` или переменной `PORT`).
+
+При первом старте auth-service сеет справочники: отделы (Развитие АРТ, Сопровождение), должности и грейды (Испытательный срок, Менеджер 1–2 грейд, Ведущий менеджер 1–2 грейд) со ступенями плана.
+
+## Запуск в Docker (production-контур)
+
+```bash
+cp .env.example .env     # при необходимости поменять секреты
+docker compose up --build
+```
+
+Поднимаются: 3 PostgreSQL (по одной на сервис с БД), 4 сервиса, nginx-шлюз на порту 80.
+
+## Учётные записи и роли
+
+- **Менеджер** (`manager`) — расчёт ЗП (для отдела «Развитие АРТ»), история, Excel, конструктор КП, профиль.
+- **Руководитель** (`head`) — всё, что у менеджера, плюс: дашборд отдела, аналитика, рентабельность, расходы, управление грейдами и пользователями.
+
+Регистрация руководителя требует пароль подтверждения — переменная `HEAD_REGISTER_PASSWORD` (по умолчанию `123456789`, **обязательно смените в production**).
+
+## Переменные окружения
+
+См. `.env.example`. Ключевые:
+
+| Переменная | Назначение |
+|---|---|
+| `SECRET_KEY` | подпись JWT (единая для всех сервисов) |
+| `INTERNAL_API_TOKEN` | токен межсервисных вызовов `/internal/*` |
+| `HEAD_REGISTER_PASSWORD` | пароль регистрации руководителя |
+| `AUTH_SERVICE_URL` / `PAYROLL_SERVICE_URL` | адреса сервисов для межсервисных вызовов |
+| `VAT_RATE_PERCENT`, `INSURANCE_RATE_PERCENT`, `NDFL_RATE_PERCENT`, `OFFICE_COST_PER_EMPLOYEE` | экономика расчётов (НДС, взносы, НДФЛ, офис на сотрудника) |
+| `POSTGRES_*` | подключения к БД (в Docker) |
+| `DATABASE_URL_OVERRIDE` / `DATABASE_URL` | переопределение DSN (локально — SQLite) |
+
+## API (кратко)
+
+- `POST /api/auth/register`, `POST /api/auth/login` — выдача JWT; в `user` возвращается полный объект `grade` (план, ступени, KPI 2).
+- `GET/PUT /api/auth/me` — профиль; `POST /api/auth/forgot-password|verify-reset-code|reset-password` — сброс пароля.
+- `GET /api/departments|positions|grades` — публичные справочники.
+- `POST /api/payroll/calculate`, `GET /api/payroll/history|summary|cost-price`, `POST /api/payroll/cost-price`, `GET /api/payroll/records/{id}/export` — расчёты ЗП.
+- `GET /api/head/dashboard|history|waterfall|costs`, `POST /api/head/profitability` — контур руководителя (роль `head`).
+- `GET/POST /api/admin/grades`, `PUT/DELETE /api/admin/grades/{id}`, `POST /api/admin/grades/{id}/restore`, `GET /api/admin/users`, `PUT /api/admin/users/{id}/grade|position`, `DELETE /api/admin/users/{id}`, `POST /api/admin/users/{id}/restore|reset-password` — администрирование (роль `head`).
+- `GET/POST /api/kp/documents`, `GET/PUT/DELETE /api/kp/documents/{id}` — документы КП (все роли, только свои).
+- `GET /internal/users/{id}/profile`, `GET /internal/departments/{id}/members` — internal API (только с `X-Internal-Token`).
+
+## Структура репозитория
+
+```
+├── frontend/            # SPA-монолит + конструктор КП (kp.html)
+├── nginx/nginx.conf     # production-шлюз
+├── services/
+│   ├── auth/            # :8001 пользователи, справочники, грейды, аудит
+│   ├── payroll/         # :8002 расчёт ЗП, история, Excel, себестоимость
+│   ├── dashboard/       # :8003 контур руководителя (агрегатор)
+│   └── kp/              # :8004 документы КП
+├── docker-compose.yml   # production-контур (PostgreSQL × 3 + сервисы + nginx)
+├── local_launcher.py    # локальный запуск всех сервисов (SQLite, без Docker)
+├── local_gateway.py     # локальный шлюз (статика + прокси /api/*)
+├── start.bat / stop.bat # запуск/остановка в Windows
+└── .env.example         # все переменные окружения с комментариями
+```
+
+## Логика расчёта ЗП
+
+- Маржа для плана = (маржа услуг + маржа товара) × (1 − НДС).
+- Грейд с планом: % премии определяется ступенью выполнения плана (tiers), например 90% → 4%, 130% → 6%. Ниже первой ступени — 0%.
+- Грейд без плана (Испытательный срок): фиксированный % от маржи.
+- Премия за услуги = маржа услуг × коэф. услуг × % ; премия за товар = маржа товара × %.
+- KPI 2 (если включён в грейде): приход × %, выплачивается при сохранности клиентов ≥ порога.
+- Gross = оклад пропорционально дням + премии; Net = Gross − НДФЛ.

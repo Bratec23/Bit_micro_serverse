@@ -17,6 +17,42 @@ services:
       retries: 5
     restart: unless-stopped
 
+  db-payroll:
+    image: postgres:16-alpine
+    container_name: bitserves_db_payroll
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB_PAYROLL}
+    volumes:
+      - db_payroll_data:/var/lib/postgresql/data
+    ports:
+      - "15402:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  db-kp:
+    image: postgres:16-alpine
+    container_name: bitserves_db_kp
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB_KP}
+    volumes:
+      - db_kp_data:/var/lib/postgresql/data
+    ports:
+      - "15404:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
   auth-service:
     build: ./services/auth
     container_name: bitserves_auth
@@ -30,6 +66,49 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  payroll-service:
+    build: ./services/payroll
+    container_name: bitserves_payroll
+    env_file: .env
+    expose:
+      - "8002"
+    ports:
+      - "${PAYROLL_SERVICE_PORT}:8002"
+    depends_on:
+      db-payroll:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    restart: unless-stopped
+
+  dashboard-service:
+    build: ./services/dashboard
+    container_name: bitserves_dashboard
+    env_file: .env
+    expose:
+      - "8003"
+    ports:
+      - "${DASHBOARD_SERVICE_PORT}:8003"
+    depends_on:
+      auth-service:
+        condition: service_started
+      payroll-service:
+        condition: service_started
+    restart: unless-stopped
+
+  kp-service:
+    build: ./services/kp
+    container_name: bitserves_kp
+    env_file: .env
+    expose:
+      - "8004"
+    ports:
+      - "${KP_SERVICE_PORT}:8004"
+    depends_on:
+      db-kp:
+        condition: service_healthy
+    restart: unless-stopped
+
   gateway:
     image: nginx:alpine
     container_name: bitserves_gateway
@@ -37,9 +116,15 @@ services:
       - "8000:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend:/usr/share/nginx/html:ro
     depends_on:
       - auth-service
+      - payroll-service
+      - dashboard-service
+      - kp-service
     restart: unless-stopped
 
 volumes:
   db_auth_data:
+  db_payroll_data:
+  db_kp_data:

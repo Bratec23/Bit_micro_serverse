@@ -1,0 +1,363 @@
+from typing import List, Optional
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
+from fastapi.security import OAuth2PasswordBearer
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.auth_client import get_user_profile
+from app.config import settings
+from app.database import get_db
+from app.export import generate_payroll_xlsx
+from app.models import CostPriceRecord, PayrollRecord
+from app.security import decode_access_token
+
+
+router = APIRouter(prefix="/api/payroll", tags=["payroll"])
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+PAYROLL_DEPARTMENT_CODE = "dev_art"
+
+
+def get_current_profile(token: str = Depends(oauth2_scheme)) -> dict:
+    payload = decode_access_token(token)
+    user_id = payload.get("sub") if payload else None
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Недействительный токен")
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Недействительный токен")
+    profile = get_user_profile(uid)
+    if not profile.get("is_active"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Учётная запись деактивирована")
+    return profile
+
+
+class PayrollCalcIn(BaseModel):
+    period: str = Field(description="ГГГГ-ММ, например 2026-07")
+    worked_days: int = Field(ge=0, le=31)
+    working_days: int = Field(ge=1, le=31)
+    service_margin: float = Field(ge=0, default=0)
+    goods_margin: float = Field(ge=0, default=0)
+    tax_rate: float = Field(ge=0, le=100, default=13.0)
+    kpi2_revenue: float = Field(ge=0, default=0)
+    kpi2_retention_pct: float = Field(ge=0, le=100, default=0)
+
+
+class PayrollOut(BaseModel):
+    id: int
+    period: str
+    worked_days: int
+    working_days: int
+    service_margin: float
+    goods_margin: float
+    bonus_percent: float
+    service_factor: float
+    base_salary: float
+    accrued_base: float
+    services_bonus: float
+    goods_bonus: float
+    bonus_total: float
+    tax_rate: float
+    gross_pay: float
+    tax_amount: float
+    net_pay: float
+    grade_id: str
+    grade_name: str
+    has_plan: bool = False
+    plan_margin: Optional[float] = None
+    margin_total: float = 0
+    margin_for_plan: float = 0
+    performance_pct: Optional[float] = None
+    bonus_total_with_kpi2: float = 0
+    kpi2_enabled: bool = False
+    kpi2_revenue: float = 0
+    kpi2_retention_pct: float = 0
+    kpi2_bonus_amount: float = 0
+    kpi2_paid: bool = False
+    kpi2_bonus_percent: float = 5.0
+    kpi2_min_retention_pct: float = 80.0
+
+    class Config:
+        from_attributes = False
+
+
+def _ensure_can_calculate(profile: dict) -> None:
+    if profile.get("department_code") != PAYROLL_DEPARTMENT_CODE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Расчёт заработной платы доступен только для отдела Развитие АРТ",
+        )
+
+
+def _margin_for_plan(service_margin: float, goods_margin: float) -> float:
+    return round((float(service_margin) + float(goods_margin)) * (1 - settings.VAT_RATE_PERCENT / 100), 2)
+
+
+def _resolve_bonus_percent(grade: dict, margin_for_plan: float) -> float:
+    if not grade.get("has_plan") or grade.get("plan_margin") is None or float(grade["plan_margin"]) <= 0:
+        return float(grade.get("bonus_percent", 0))
+    if margin_for_plan <= 0:
+        return 0.0
+    plan = float(grade["plan_margin"])
+    performance_pct = margin_for_plan / plan * 100
+    tiers = sorted(grade.get("tiers", []), key=lambda t: float(t["min_pct"]), reverse=True)
+    for tier in tiers:
+        if performance_pct >= float(tier["min_pct"]):
+            return float(tier["bonus_percent"])
+    return 0.0
+
+
+def _calc_kpi2(grade: dict, kpi2_revenue: float, kpi2_retention_pct: float) -> tuple[float, bool]:
+    if not grade.get("kpi2_enabled") or kpi2_revenue <= 0:
+        return 0.0, False
+    if float(kpi2_retention_pct) < float(grade.get("kpi2_min_retention_pct", 80.0)):
+        return 0.0, False
+    bonus = round(float(kpi2_revenue) * float(grade.get("kpi2_bonus_percent", 5.0)) / 100, 2)
+    return bonus, True
+
+
+def _calc(base_salary: float, bonus_percent: float, service_factor: float, p: PayrollCalcIn, kpi2_bonus: float = 0) -> dict:
+    accrued_base = round(base_salary * p.worked_days / p.working_days, 2)
+    services_bonus = round(p.service_margin * service_factor * bonus_percent / 100, 2)
+    goods_bonus = round(p.goods_margin * bonus_percent / 100, 2)
+    bonus_total = round(services_bonus + goods_bonus, 2)
+    gross_pay = round(accrued_base + bonus_total + kpi2_bonus, 2)
+    tax_amount = round(gross_pay * p.tax_rate / 100, 2)
+    net_pay = round(gross_pay - tax_amount, 2)
+    return {
+        "accrued_base": accrued_base,
+        "services_bonus": services_bonus,
+        "goods_bonus": goods_bonus,
+        "bonus_total": bonus_total,
+        "gross_pay": gross_pay,
+        "tax_amount": tax_amount,
+        "net_pay": net_pay,
+    }
+
+
+def _payroll_out(rec: PayrollRecord) -> dict:
+    plan_margin = float(rec.plan_margin) if rec.plan_margin is not None else None
+    performance_pct = float(rec.performance_pct) if rec.performance_pct is not None else None
+    return {
+        "id": rec.id,
+        "period": rec.period,
+        "worked_days": rec.worked_days,
+        "working_days": rec.working_days,
+        "service_margin": float(rec.service_margin),
+        "goods_margin": float(rec.goods_margin),
+        "bonus_percent": float(rec.bonus_percent),
+        "service_factor": float(rec.service_factor),
+        "base_salary": float(rec.base_salary),
+        "accrued_base": float(rec.accrued_base),
+        "services_bonus": float(rec.services_bonus),
+        "goods_bonus": float(rec.goods_bonus),
+        "bonus_total": float(rec.bonus_total),
+        "bonus_total_with_kpi2": round(float(rec.bonus_total) + float(rec.kpi2_bonus_amount), 2),
+        "tax_rate": float(rec.tax_rate),
+        "gross_pay": float(rec.gross_pay),
+        "tax_amount": float(rec.tax_amount),
+        "net_pay": float(rec.net_pay),
+        "grade_id": rec.grade_id,
+        "grade_name": rec.grade_name or rec.grade_id,
+        "has_plan": bool(rec.has_plan),
+        "plan_margin": plan_margin,
+        "margin_total": round(float(rec.service_margin) + float(rec.goods_margin), 2),
+        "margin_for_plan": float(rec.margin_for_plan),
+        "performance_pct": performance_pct,
+        "kpi2_enabled": bool(rec.kpi2_enabled),
+        "kpi2_revenue": float(rec.kpi2_revenue),
+        "kpi2_retention_pct": float(rec.kpi2_retention_pct),
+        "kpi2_bonus_amount": float(rec.kpi2_bonus_amount),
+        "kpi2_paid": bool(rec.kpi2_paid),
+        "kpi2_bonus_percent": float(rec.grade_kpi2_bonus_percent),
+        "kpi2_min_retention_pct": float(rec.grade_kpi2_min_retention_pct),
+    }
+
+
+@router.post("/calculate", response_model=PayrollOut, status_code=status.HTTP_201_CREATED)
+def calculate_payroll(payload: PayrollCalcIn, db: Session = Depends(get_db), profile: dict = Depends(get_current_profile)):
+    _ensure_can_calculate(profile)
+    if payload.worked_days > payload.working_days:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Отработано дней не может быть больше рабочих дней в месяце")
+    grade = profile.get("grade")
+    if not grade:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пользователю не назначен грейд")
+    base_salary = float(grade["base_salary"])
+    service_factor = float(grade["service_factor"])
+    margin_for_plan = _margin_for_plan(payload.service_margin, payload.goods_margin)
+    bonus_percent = _resolve_bonus_percent(grade, margin_for_plan)
+    kpi2_bonus, kpi2_paid = _calc_kpi2(grade, payload.kpi2_revenue, payload.kpi2_retention_pct)
+    calc = _calc(base_salary, bonus_percent, service_factor, payload, kpi2_bonus)
+    has_plan = bool(grade.get("has_plan"))
+    plan_margin = float(grade["plan_margin"]) if grade.get("plan_margin") is not None else None
+    if has_plan and plan_margin and plan_margin > 0:
+        performance_pct = round(margin_for_plan / plan_margin * 100, 2)
+    else:
+        performance_pct = None
+    record = PayrollRecord(
+        user_id=profile["id"],
+        period=payload.period,
+        worked_days=payload.worked_days,
+        working_days=payload.working_days,
+        service_margin=payload.service_margin,
+        goods_margin=payload.goods_margin,
+        bonus_percent=bonus_percent,
+        service_factor=service_factor,
+        base_salary=base_salary,
+        tax_rate=payload.tax_rate,
+        grade_id=grade["id"],
+        grade_name=grade.get("name", grade["id"]),
+        has_plan=has_plan,
+        plan_margin=plan_margin,
+        margin_for_plan=margin_for_plan,
+        performance_pct=performance_pct,
+        kpi2_enabled=bool(grade.get("kpi2_enabled")),
+        kpi2_revenue=payload.kpi2_revenue,
+        kpi2_retention_pct=payload.kpi2_retention_pct,
+        kpi2_bonus_amount=kpi2_bonus,
+        kpi2_paid=kpi2_paid,
+        grade_kpi2_bonus_percent=float(grade.get("kpi2_bonus_percent", 5.0)),
+        grade_kpi2_min_retention_pct=float(grade.get("kpi2_min_retention_pct", 80.0)),
+        **calc,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return _payroll_out(record)
+
+
+@router.get("/history", response_model=List[PayrollOut])
+def history(db: Session = Depends(get_db), profile: dict = Depends(get_current_profile)):
+    rows = db.scalars(
+        select(PayrollRecord)
+        .where(PayrollRecord.user_id == profile["id"])
+        .order_by(PayrollRecord.created_at.desc())
+    ).all()
+    return [_payroll_out(r) for r in rows]
+
+
+class SummaryOut(BaseModel):
+    period: str
+    record_id: int
+    created_at: str
+    accrued_base: float
+    services_bonus: float
+    goods_bonus: float
+    bonus_total: float
+    bonus_total_with_kpi2: float
+    kpi2_bonus_amount: float
+    gross_pay: float
+    tax_amount: float
+    net_pay: float
+
+
+@router.get("/summary", response_model=List[SummaryOut])
+def summary(db: Session = Depends(get_db), profile: dict = Depends(get_current_profile)):
+    rows = db.scalars(
+        select(PayrollRecord)
+        .where(PayrollRecord.user_id == profile["id"])
+        .order_by(PayrollRecord.created_at.desc())
+    ).all()
+    latest_by_period: dict[str, PayrollRecord] = {}
+    for r in rows:
+        if r.period not in latest_by_period:
+            latest_by_period[r.period] = r
+    items = list(latest_by_period.values())
+    items.sort(key=lambda x: x.period)
+    return [
+        SummaryOut(
+            period=r.period,
+            record_id=r.id,
+            created_at=r.created_at.strftime("%d.%m.%Y %H:%M") if r.created_at else "",
+            accrued_base=float(r.accrued_base),
+            services_bonus=float(r.services_bonus),
+            goods_bonus=float(r.goods_bonus),
+            bonus_total=float(r.bonus_total),
+            bonus_total_with_kpi2=round(float(r.bonus_total) + float(r.kpi2_bonus_amount), 2),
+            kpi2_bonus_amount=float(r.kpi2_bonus_amount),
+            gross_pay=float(r.gross_pay),
+            tax_amount=float(r.tax_amount),
+            net_pay=float(r.net_pay),
+        )
+        for r in items
+    ]
+
+
+@router.get("/records/{record_id}/export")
+def export_record(record_id: int, db: Session = Depends(get_db), profile: dict = Depends(get_current_profile)):
+    record = db.get(PayrollRecord, record_id)
+    if not record or record.user_id != profile["id"]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Расчёт не найден")
+    content = generate_payroll_xlsx(record, profile)
+    safe_name = (profile.get("full_name") or "employee").replace(" ", "_").replace("/", "_")
+    ascii_name = f"Raschet_ZP_{record.id}_{record.period}"
+    utf8_name = f"Raschet_ZP_{safe_name}_{record.period}.xlsx"
+    disposition = f"attachment; filename=\"{ascii_name}.xlsx\"; filename*=UTF-8''{quote(utf8_name)}"
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": disposition},
+    )
+
+
+class CostPriceIn(BaseModel):
+    period: str = Field(description="ГГГГ-ММ, например 2026-07")
+    cost_price: float = Field(ge=0, default=0)
+
+
+class CostPriceOut(BaseModel):
+    period: str
+    cost_price: float
+    updated_at: str
+
+
+@router.post("/cost-price", response_model=CostPriceOut)
+def save_cost_price(payload: CostPriceIn, db: Session = Depends(get_db), profile: dict = Depends(get_current_profile)):
+    existing = db.scalar(
+        select(CostPriceRecord).where(
+            CostPriceRecord.user_id == profile["id"],
+            CostPriceRecord.period == payload.period,
+        )
+    )
+    if existing:
+        existing.cost_price = payload.cost_price
+    else:
+        existing = CostPriceRecord(
+            user_id=profile["id"],
+            period=payload.period,
+            cost_price=payload.cost_price,
+        )
+        db.add(existing)
+    db.commit()
+    db.refresh(existing)
+    return CostPriceOut(
+        period=existing.period,
+        cost_price=float(existing.cost_price),
+        updated_at=existing.created_at.strftime("%d.%m.%Y %H:%M") if existing.created_at else "",
+    )
+
+
+@router.get("/cost-price", response_model=List[CostPriceOut])
+def list_cost_price(
+    period: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    profile: dict = Depends(get_current_profile),
+):
+    stmt = select(CostPriceRecord).where(CostPriceRecord.user_id == profile["id"])
+    if period:
+        stmt = stmt.where(CostPriceRecord.period == period)
+    stmt = stmt.order_by(CostPriceRecord.period.desc())
+    rows = db.scalars(stmt).all()
+    return [
+        CostPriceOut(
+            period=r.period,
+            cost_price=float(r.cost_price),
+            updated_at=r.created_at.strftime("%d.%m.%Y %H:%M") if r.created_at else "",
+        )
+        for r in rows
+    ]

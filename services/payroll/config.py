@@ -4,33 +4,33 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "Bit_micro_serverse — auth-service"
+    APP_NAME: str = "Bit_micro_serverse — payroll-service"
     SECRET_KEY: str = "change-me-in-production-please-use-a-long-random-string"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     CORS_ORIGINS: str = "*"
 
-    HEAD_REGISTER_PASSWORD: str = "123456789"
-
     INTERNAL_API_TOKEN: str = "change-me-internal-token"
+    AUTH_SERVICE_URL: str = "http://auth-service:8001"
 
-    PASSWORD_RESET_CODE_TTL_MINUTES: int = 15
+    VAT_RATE_PERCENT: float = 5.0
 
     POSTGRES_USER: str = "bitserves"
     POSTGRES_PASSWORD: str = "bitserves_password"
-    POSTGRES_DB_AUTH: str = "auth_db"
-    POSTGRES_HOST_AUTH: str = "localhost"
+    POSTGRES_DB_PAYROLL: str = "payroll_db"
+    POSTGRES_HOST_PAYROLL: str = "localhost"
     POSTGRES_PORT: int = 5432
 
-    DATABASE_URL_OVERRIDE: str = ""
+    DATABASE_URL: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
-    def DATABASE_URL(self) -> str:
-        return self.DATABASE_URL_OVERRIDE or (
+    def database_url(self) -> str:
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+        return (
             f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_HOST_AUTH}:{self.POSTGRES_PORT}/{self.POSTGRES_DB_AUTH}"
+            f"@{self.POSTGRES_HOST_PAYROLL}:{self.POSTGRES_PORT}/{self.POSTGRES_DB_PAYROLL}"
         )
 
 

@@ -1,0 +1,32 @@
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    APP_NAME: str = "Bit_micro_serverse — dashboard-service"
+    SECRET_KEY: str = "change-me-in-production-please-use-a-long-random-string"
+    ALGORITHM: str = "HS256"
+    CORS_ORIGINS: str = "*"
+
+    INTERNAL_API_TOKEN: str = "change-me-internal-token"
+    AUTH_SERVICE_URL: str = "http://auth-service:8001"
+    PAYROLL_SERVICE_URL: str = "http://payroll-service:8002"
+
+    OFFICE_COST_PER_EMPLOYEE: float = 45000.0
+    INSURANCE_RATE_PERCENT: float = 30.0
+    VAT_RATE_PERCENT: float = 5.0
+    NDFL_RATE_PERCENT: float = 13.0
+
+    FOT_MARGIN_NORMAL_PCT: float = 20.0
+    FOT_MARGIN_CRITICAL_PCT: float = 25.0
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()
