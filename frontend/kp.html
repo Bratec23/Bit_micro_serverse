@@ -27,6 +27,11 @@ body{margin:0;color:var(--text);background:linear-gradient(180deg,#fbfbfd 0%,var
 .toolbar .tb-title span{color:rgba(255,255,255,.65)}
 .tb-save{font-size:12px;color:rgba(255,255,255,.7);transition:color .3s}
 .tb-save.flash{color:#fff;font-weight:700}
+.tb-doc-title{width:230px;color:#fff;background:rgba(255,255,255,.14);border:1px dashed rgba(255,255,255,.4);
+  border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;font-family:inherit;transition:background .2s,border-color .2s}
+.tb-doc-title::placeholder{color:rgba(255,255,255,.55);font-weight:500}
+.tb-doc-title:hover{border-color:rgba(255,255,255,.7)}
+.tb-doc-title:focus{outline:none;background:rgba(255,255,255,.22);border:1px solid #fff}
 .tb-spacer{flex:1}
 .btn{display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer;border-radius:12px;
   padding:11px 20px;font-size:14px;font-weight:750;font-family:inherit;transition:transform .15s,box-shadow .2s,background .2s}
@@ -144,10 +149,10 @@ table.doc input.ed{font-size:13.5px}
 .bb-hide{margin-left:auto}
 .bb-total{display:flex;justify-content:flex-end;gap:14px;align-items:baseline;margin-top:10px;font-size:14px;color:var(--muted)}
 .bb-total b{font-size:17px;color:var(--text)}
-.photo-cell{width:78px}
-.photo-thumb{width:64px;height:64px;border-radius:10px;object-fit:cover;display:block;border:1px solid var(--line)}
-.photo-add{width:64px;height:64px;border-radius:10px;border:1.5px dashed rgba(229,1,113,.35);background:var(--accent-soft);
-  color:var(--accent);font-size:10.5px;font-weight:700;cursor:pointer;line-height:1.3;transition:all .2s}
+.photo-cell{width:132px}
+.photo-thumb{width:120px;height:120px;border-radius:12px;object-fit:cover;display:block;border:1px solid var(--line)}
+.photo-add{width:120px;height:120px;border-radius:12px;border:1.5px dashed rgba(229,1,113,.35);background:var(--accent-soft);
+  color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;line-height:1.4;transition:all .2s}
 .photo-add:hover{border-color:var(--accent);background:rgba(229,1,113,.15)}
 .grand-total{display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding:20px 24px;
   background:linear-gradient(135deg,var(--accent),var(--accent-dark));border-radius:var(--r-lg);color:#fff;
@@ -181,10 +186,10 @@ table.doc input.ed{font-size:13.5px}
 
 /* ===== ПЕЧАТЬ / PDF ===== */
 @media print{
-  @page{size:A4;margin:12mm}
+  @page{size:A4;margin:0}
   body{background:#fff}
   .toolbar,.struct,.hint-bar,.no-print{display:none!important}
-  .page{max-width:none;margin:0;padding:0}
+  .page{max-width:none;margin:0;padding:12mm}
   .card,.budget-block{box-shadow:none;border:1px solid rgba(0,0,0,.12);break-inside:avoid;margin-bottom:14px;padding:22px}
   .cover{margin-bottom:14px;padding:30px}
   .cover h1,.cover .h1-ed{font-size:30px}
@@ -204,6 +209,7 @@ table.doc input.ed{font-size:13.5px}
 <div class="toolbar">
   <button class="btn btn-ghost" onclick="(function(){var u=null;try{u=JSON.parse(localStorage.getItem('bitserves_user')||'null')}catch(e){};localStorage.setItem('bitserves_pending_route',(u&&u.role==='head')?'head-kp':'kp');location.href='/'})()">← Все КП</button>
   <div class="tb-title">Конструктор КП <span>· Торговое оборудование и ИТ</span></div>
+  <input class="tb-doc-title" id="f-title" placeholder="✎ Название КП…" title="Название документа — видно в списке КП" maxlength="120">
   <div class="tb-save" id="saveState">✓ Черновик сохранён</div>
   <div class="tb-spacer"></div>
   <button class="btn btn-ghost" id="btnReset">↺ Сбросить</button>
@@ -213,6 +219,8 @@ table.doc input.ed{font-size:13.5px}
 <!-- ===== СТРУКТУРА КП (вкл/выкл блоков) ===== -->
 <div class="struct no-print">
   <span class="s-lbl">Структура КП:</span>
+  <div class="s-tgl on" data-sec="context"><span class="dot"></span>Контекст и задача</div>
+  <div class="s-tgl on" data-sec="solution"><span class="dot"></span>Предлагаемое решение</div>
   <div class="s-tgl on" data-sec="equip"><span class="dot"></span>Оборудование</div>
   <div class="s-tgl on" data-sec="lic"><span class="dot"></span>Лицензии</div>
   <div class="s-tgl on" data-sec="serv"><span class="dot"></span>Услуги</div>
@@ -253,7 +261,7 @@ table.doc input.ed{font-size:13.5px}
   </section>
 
   <!-- ===== 01 КОНТЕКСТ ===== -->
-  <section class="card">
+  <section class="card" data-sec-card="context">
     <div class="sec-num">01</div>
     <div class="sec-tag">Контекст и задача</div>
     <h2>Что требуется клиенту</h2>
@@ -261,7 +269,7 @@ table.doc input.ed{font-size:13.5px}
   </section>
 
   <!-- ===== 02 РЕШЕНИЕ (текстовое) ===== -->
-  <section class="card">
+  <section class="card" data-sec-card="solution">
     <div class="sec-num">02</div>
     <div class="sec-tag">Предлагаемое решение</div>
     <h2><input class="ed" id="f-sol-title" value="Наше предложение" style="font:inherit"></h2>
@@ -323,12 +331,12 @@ table.doc input.ed{font-size:13.5px}
     <div class="budget-block" data-block="serv">
       <div class="bb-head">
         <div class="bb-badge green">🛠️</div>
-        <div><h3>Услуги</h3><div class="bb-sub">настройка, подключение, обучение, сервис</div></div>
+        <div><h3>Услуги</h3><div class="bb-sub">настройка, подключение, обучение, сервис — с фото работ</div></div>
         <button class="btn btn-mini grey bb-hide no-print" data-hide="serv">убрать блок</button>
       </div>
       <table class="doc">
         <thead><tr>
-          <th>Услуга</th>
+          <th class="photo-cell">Фото</th><th>Услуга</th>
           <th style="width:80px" class="num">Кол-во</th><th style="width:140px" class="num">Цена, ₽</th>
           <th style="width:140px" class="num">Сумма, ₽</th><th class="no-print" style="width:34px"></th>
         </tr></thead>
@@ -339,8 +347,11 @@ table.doc input.ed{font-size:13.5px}
     </div>
 
     <div class="grand-total">
-      <div class="gt-lbl">Итого по предложению<br/><span style="font-size:11.5px;opacity:.7">без НДС, финальная цена — в договоре</span></div>
-      <div class="gt-val mono" id="grandTotal">0 ₽</div>
+      <div class="gt-lbl">Итого по предложению<br/><span style="font-size:11.5px;opacity:.7">с НДС 5% · финальная цена — в договоре</span></div>
+      <div style="text-align:right">
+        <div class="gt-val mono" id="grandTotal">0 ₽</div>
+        <div class="mono" id="grandBase" style="font-size:12px;opacity:.75;margin-top:2px">без НДС: 0 ₽</div>
+      </div>
     </div>
   </section>
 
@@ -408,7 +419,7 @@ const fmt=(n)=>new Intl.NumberFormat('ru-RU').format(Math.round(n))+' ₽';
 
 let state={
   fields:{},
-  show:{equip:true,lic:true,serv:true,stages:true,terms:true,next:true},
+  show:{context:true,solution:true,equip:true,lic:true,serv:true,stages:true,terms:true,next:true},
   equip:[
     {name:'POS-терминал сенсорный 15"', qty:2, price:42000, photo:null},
     {name:'Сканер штрихкодов 2D', qty:2, price:7500, photo:null},
@@ -419,10 +430,10 @@ let state={
     {name:'Подписка на обновления и поддержку, 12 мес', qty:1, price:18000, photo:null},
   ],
   serv:[
-    {name:'Настройка и подключение оборудования', qty:1, price:15000},
-    {name:'Интеграция с учётной системой 1С', qty:1, price:25000},
-    {name:'Обучение персонала (2 часа, выезд)', qty:1, price:8000},
-    {name:'Сервисный контракт, 1 год', qty:1, price:36000},
+    {name:'Настройка и подключение оборудования', qty:1, price:15000, photo:null},
+    {name:'Интеграция с учётной системой 1С', qty:1, price:25000, photo:null},
+    {name:'Обучение персонала (2 часа, выезд)', qty:1, price:8000, photo:null},
+    {name:'Сервисный контракт, 1 год', qty:1, price:36000, photo:null},
   ],
   stages:[
     {name:'Согласование КП и договор', term:'1–2 дня', result:'Счёт, резерв оборудования'},
@@ -439,11 +450,11 @@ function save(){ try{ localStorage.setItem(LS_KEY,JSON.stringify(state));
 }catch(e){ $('saveState').textContent='⚠ Не удалось сохранить'; } }
 function load(){ try{ const raw=localStorage.getItem(LS_KEY); if(!raw) return;
   const d=JSON.parse(raw); state=Object.assign(state,d);
-  state.show=Object.assign({equip:true,lic:true,serv:true,stages:true,terms:true,next:true},d.show||{});
+  state.show=Object.assign({context:true,solution:true,equip:true,lic:true,serv:true,stages:true,terms:true,next:true},d.show||{});
 }catch(e){} }
 
 /* ================= ТЕКСТОВЫЕ ПОЛЯ ================= */
-const TEXT_FIELDS=['h1','sub','s1v','s1l','s2v','s2l','s3v','s3l','s4v','s4l','num','date','valid','client','contact',
+const TEXT_FIELDS=['title','h1','sub','s1v','s1l','s2v','s2l','s3v','s3l','s4v','s4l','num','date','valid','client','contact',
   'context','sol-title','solution','v1','v2','v3','v4','terms','next-title','next','m-name','m-role','m-phone','m-mail'];
 function autoGrow(t){ t.style.height='auto'; t.style.height=(t.scrollHeight+4)+'px'; }
 function bindTextFields(){
@@ -471,6 +482,12 @@ function renderStructure(){
   // если бюджет-блоков нет вообще — прячем и общий итог
   const anyBudget=state.show.equip||state.show.lic||state.show.serv;
   document.querySelector('.grand-total').style.display=anyBudget?'':'none';
+  // перенумерация видимых разделов (01, 02, 03…) — без пропусков при скрытых блоках
+  let secN=0;
+  document.querySelectorAll('#document .sec-num').forEach(el=>{
+    const sec=el.closest('section');
+    if(sec && sec.style.display!=='none'){ secN++; el.textContent=String(secN).padStart(2,'0'); }
+  });
   renderTotals();
 }
 document.querySelectorAll('.s-tgl').forEach(t=>t.addEventListener('click',()=>{
@@ -539,7 +556,7 @@ function renderServ(){
   const tb=$('bodyServ'); tb.innerHTML='';
   state.serv.forEach((r,i)=>{
     const tr=document.createElement('tr');
-    tr.innerHTML=`
+    tr.innerHTML=photoCell(r,i)+`
       <td><input class="ed" data-i="${i}" data-f="name" value="${esc(r.name)}"></td>
       <td class="num"><input class="ed num mono" type="number" min="0" data-i="${i}" data-f="qty" value="${r.qty}" style="width:62px"></td>
       <td class="num"><input class="ed num mono" type="number" min="0" step="100" data-i="${i}" data-f="price" value="${r.price}" style="width:110px"></td>
@@ -555,11 +572,13 @@ function renderTotals(){
   const l=state.show.lic?sumArr(state.lic):0;
   const s=state.show.serv?sumArr(state.serv):0;
   $('totEquip').textContent=fmt(e); $('totLic').textContent=fmt(l); $('totServ').textContent=fmt(s);
-  $('grandTotal').textContent=fmt(e+l+s);
+  const base=e+l+s;
+  $('grandTotal').textContent=fmt(base*1.05); // финальная цена с НДС 5%
+  $('grandBase').textContent='без НДС: '+fmt(base);
 }
 $('addEquip').addEventListener('click',()=>{state.equip.push({name:'Новая позиция',qty:1,price:0,photo:null}); renderEquip(); save();});
 $('addLic').addEventListener('click',()=>{state.lic.push({name:'Новая лицензия',qty:1,price:0,photo:null}); renderLic(); save();});
-$('addServ').addEventListener('click',()=>{state.serv.push({name:'Новая услуга',qty:1,price:0}); renderServ(); save();});
+$('addServ').addEventListener('click',()=>{state.serv.push({name:'Новая услуга',qty:1,price:0,photo:null}); renderServ(); save();});
 
 /* ================= ЭТАПЫ ================= */
 function renderStages(){
@@ -619,10 +638,12 @@ $('btnReset').addEventListener('click',()=>{
     return {'Content-Type':'application/json','Authorization':'Bearer '+TOKEN};
   }
   function docTitle(){
+    const custom=(state.fields['title']||'').trim();
     const num=(state.fields['num']||'').trim();
     const client=(state.fields['client']||'').replace(/[«»_]/g,'').trim();
     let t='Коммерческое предложение';
-    if(num&&client) t=num+' · '+client;
+    if(custom) t=custom;
+    else if(num&&client) t=num+' · '+client;
     else if(client) t='КП — '+client;
     else if(num) t=num;
     document.title=t+' | Конструктор КП';
@@ -674,7 +695,7 @@ $('btnReset').addEventListener('click',()=>{
       const d=await r.json();
       if(d.payload&&Object.keys(d.payload).length){
         state=Object.assign(state,d.payload);
-        state.show=Object.assign({equip:true,lic:true,serv:true,stages:true,terms:true,next:true},d.payload.show||{});
+        state.show=Object.assign({context:true,solution:true,equip:true,lic:true,serv:true,stages:true,terms:true,next:true},d.payload.show||{});
         // перерисовываем всё с серверным состоянием
         bindTextFields();
         renderStructure();

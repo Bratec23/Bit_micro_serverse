@@ -1626,7 +1626,8 @@ const App = (() => {
             <td data-label="Создано" class="tnum">${escapeHtml(d.created_at)}</td>
             <td data-label="Изменено" class="tnum">${escapeHtml(d.updated_at)}</td>
             <td data-label="" class="row-action">
-              <button class="btn-ghost btn-sm" onclick="App.openKp(${d.id})" title="Открыть">✎</button>
+              <button class="btn-ghost btn-sm" onclick="App.openKp(${d.id})" title="Открыть">Открыть</button>
+              <button class="btn-ghost btn-sm" onclick="App.renameKp(${d.id}, '${escapeHtml(d.title).replace(/'/g, "\\'")}')" title="Переименовать">✎</button>
               <button class="btn-ghost btn-sm" onclick="App.deleteKp(${d.id}, '${escapeHtml(d.title).replace(/'/g, "\\'")}')" title="Удалить">🗑</button>
             </td>
           </tr>`).join("")}</tbody>
@@ -1642,6 +1643,19 @@ const App = (() => {
   }
 
   function openKp(id) { location.href = "/kp.html?id=" + id; }
+
+  async function renameKp(id, oldTitle) {
+    const t = prompt("Новое название КП:", oldTitle);
+    if (t === null) return;
+    const title = t.trim();
+    if (!title || title === oldTitle) return;
+    try {
+      const doc = await api(`/api/kp/documents/${id}`);
+      await api(`/api/kp/documents/${id}`, { method: "PUT", body: { title, payload: doc.payload || {} } });
+      toast("Название обновлено", "success");
+      loadKpList();
+    } catch (e) { toast("Не удалось переименовать: " + e.message, "error"); }
+  }
 
   async function deleteKp(id, title) {
     if (!confirm(`Удалить КП «${title}»? Действие необратимо.`)) return;
@@ -1694,7 +1708,7 @@ const App = (() => {
     loadGradesAdmin, openGradeEditor, closeGradeEditor, toggleGradePlan, addTierRow, saveGradeFromEditor, archiveGrade, restoreGrade,
     loadUsersAdmin, userChangeGrade, userChangePosition, userDeactivate, userRestore, userResetPassword,
     toggleKpi2, updateKpi2Hint, ensureKpi2Visibility, attachKpi2Listeners,
-    loadKpList, createKp, openKp, deleteKp,
+    loadKpList, createKp, openKp, deleteKp, renameKp,
   };
 })();
 
