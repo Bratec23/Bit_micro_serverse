@@ -30,8 +30,16 @@ def get_current_head(token: str = Depends(oauth2_scheme)) -> dict:
     return profile
 
 
+def _record_margin(rec: dict) -> float:
+    """Маржа (АРТ) или сумма реализации (АБТ) — единая база для дашбордов."""
+    margin = round(float(rec.get("service_margin", 0)) + float(rec.get("goods_margin", 0)), 2)
+    if rec.get("scheme") == "abt":
+        margin = round(margin + float(rec.get("sales_total", 0)), 2)
+    return margin
+
+
 def _calc_metrics(rec: dict, cost_price: float = 0.0) -> dict:
-    margin = round(float(rec["service_margin"]) + float(rec["goods_margin"]), 2)
+    margin = _record_margin(rec)
     margin_net = round(margin * (1 - settings.VAT_RATE_PERCENT / 100), 2)
     gross = float(rec["gross_pay"])
     ndfl = float(rec["tax_amount"])
@@ -463,8 +471,8 @@ def waterfall(period: str = Query(...), head: dict = Depends(get_current_head)):
     for m in managers:
         cur_rec = _record_for(data, m["id"], period)
         prev_rec = _record_for(data, m["id"], prev_p)
-        cur_m = round(float(cur_rec["service_margin"]) + float(cur_rec["goods_margin"]), 2) if cur_rec else 0.0
-        prev_m = round(float(prev_rec["service_margin"]) + float(prev_rec["goods_margin"]), 2) if prev_rec else 0.0
+        cur_m = _record_margin(cur_rec) if cur_rec else 0.0
+        prev_m = _record_margin(prev_rec) if prev_rec else 0.0
         delta = round(cur_m - prev_m, 2)
         items.append(WaterfallItemOut(
             user_id=m["id"], full_name=m["full_name"],

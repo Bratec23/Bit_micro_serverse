@@ -59,15 +59,34 @@ def generate_payroll_xlsx(record, profile: dict) -> bytes:
     ws.cell(row=row, column=1, value="Параметры расчёта").font = Font(bold=True, size=12, color=BRAND)
     row += 1
 
-    params = [
-        ("Отработано дней", record.worked_days, "дн."),
-        ("Рабочих дней в месяце", record.working_days, "дн."),
-        ("Маржа с услуг", _money(record.service_margin), "₽"),
-        ("Маржа с товара", _money(record.goods_margin), "₽"),
-        ("Процент премии", float(record.bonus_percent), "%"),
-        ("Коэффициент услуг", float(record.service_factor), ""),
-        ("НДФЛ", float(record.tax_rate), "%"),
-    ]
+    is_abt = (getattr(record, "scheme", "margin") or "margin") == "abt"
+
+    if is_abt:
+        params = [
+            ("Отработано дней", record.worked_days, "дн."),
+            ("Рабочих дней в месяце", record.working_days, "дн."),
+            ("Реализация: новые продажи", _money(record.sales_new), "₽"),
+            ("Реализация: расширение", _money(record.sales_expansion), "₽"),
+            ("Реализация: апгрейд", _money(record.sales_upgrade), "₽"),
+            ("Реализация: продление без изменений", _money(record.sales_renew), "₽"),
+            ("Товары СБИС", _money(record.sbis_goods), "₽"),
+            ("НДФЛ", float(record.tax_rate), "%"),
+        ]
+        if record.has_plan and record.plan_margin:
+            params.append(("Норма реализации ДС (план)", _money(record.plan_margin), "₽"))
+            if record.performance_pct is not None:
+                params.append(("Выполнение нормы", float(record.performance_pct), "%"))
+    else:
+        params = [
+            ("Отработано дней", record.worked_days, "дн."),
+            ("Рабочих дней в месяце", record.working_days, "дн."),
+            ("Маржа за месяц (для плана и ступеней)", _money(record.month_margin), "₽"),
+            ("Маржа с услуг", _money(record.service_margin), "₽"),
+            ("Маржа с товара", _money(record.goods_margin), "₽"),
+            ("Процент премии", float(record.bonus_percent), "%"),
+            ("Коэффициент услуг", float(record.service_factor), ""),
+            ("НДФЛ", float(record.tax_rate), "%"),
+        ]
 
     if _money(record.kpi2_revenue) > 0:
         params.append(("KPI2 — приход ден. средств", _money(record.kpi2_revenue), "₽"))
@@ -75,6 +94,9 @@ def generate_payroll_xlsx(record, profile: dict) -> bytes:
         if record.kpi2_enabled:
             params.append(("KPI2 — процент премии", float(record.grade_kpi2_bonus_percent), "%"))
             params.append(("KPI2 — мин. сохранность", float(record.grade_kpi2_min_retention_pct), "%"))
+    elif is_abt and record.kpi2_enabled:
+        params.append(("KPI2 — сохранность клиентов", float(record.kpi2_retention_pct), "%"))
+        params.append(("KPI2 — мин. сохранность", float(record.grade_kpi2_min_retention_pct), "%"))
     for label, value, unit in params:
         ws.cell(row=row, column=1, value=label).font = LABEL_FONT
         ws.cell(row=row, column=1).border = THIN_BORDER
@@ -102,15 +124,25 @@ def generate_payroll_xlsx(record, profile: dict) -> bytes:
 
     total_bonus_with_kpi2 = round(_money(record.bonus_total) + _money(record.kpi2_bonus_amount), 2)
 
-    results = [
-        ("Начислено по окладу", _money(record.accrued_base)),
-        ("Премия за услуги", _money(record.services_bonus)),
-        ("Премия за товар", _money(record.goods_bonus)),
-    ]
+    if is_abt:
+        results = [
+            ("Начислено по окладу", _money(record.accrued_base)),
+            ("Премия: новые продажи", _money(record.bonus_new)),
+            ("Премия: расширение", _money(record.bonus_expansion)),
+            ("Премия: апгрейд", _money(record.bonus_upgrade)),
+            ("Премия: продление без изменений", _money(record.bonus_renew)),
+            ("Премия: товары СБИС (10%)", _money(record.bonus_sbis_goods)),
+        ]
+    else:
+        results = [
+            ("Начислено по окладу", _money(record.accrued_base)),
+            ("Премия за услуги", _money(record.services_bonus)),
+            ("Премия за товар", _money(record.goods_bonus)),
+        ]
 
     if _money(record.kpi2_bonus_amount) > 0:
         results.append(("Премия за сохранность (KPI2)", _money(record.kpi2_bonus_amount)))
-    elif record.kpi2_paid is False and _money(record.kpi2_revenue) > 0:
+    elif record.kpi2_paid is False and (_money(record.kpi2_revenue) > 0 or (is_abt and float(record.kpi2_retention_pct or 0) > 0)):
         results.append(("Премия за сохранность (KPI2) — не выплач.", 0.0))
 
     results.extend([

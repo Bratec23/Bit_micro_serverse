@@ -19,7 +19,20 @@ from app.security import decode_access_token
 router = APIRouter(prefix="/api/payroll", tags=["payroll"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-PAYROLL_DEPARTMENT_CODE = "dev_art"
+PAYROLL_DEPARTMENT_CODES = {"dev_art", "abt"}
+
+# ===== Мотивация отдела АБТ (СБИС) =====
+# базовые ставки по колонкам выполнения нормы реализации ДС:
+#   колонка 0: 0–89,99% · колонка 1: 90–99,99% · колонка 2: 100–109,99%
+ABT_BASE_RATES = {
+    "new": [8.0, 10.0, 13.0],        # новые продажи
+    "expansion": [7.0, 9.0, 11.0],   # расширение
+    "upgrade": [5.0, 7.0, 9.0],      # апгрейд
+    "renew": [1.2, 1.3, 1.5],        # продление без изменений
+}
+# перевыполнение (>=110%): меняется только ставка «новых продаж», типы 2–4 — без изменений (колонка 2)
+ABT_OVER_RATES = [(130.0, 20.0), (120.0, 17.0), (110.0, 15.0)]  # (порог выполнения %, ставка %)
+ABT_SBIS_GOODS_RATE = 10.0  # «Товары СБИС» — всегда 10%
 
 
 def get_current_profile(token: str = Depends(oauth2_scheme)) -> dict:
@@ -43,9 +56,16 @@ class PayrollCalcIn(BaseModel):
     working_days: int = Field(ge=1, le=31)
     service_margin: float = Field(ge=0, default=0)
     goods_margin: float = Field(ge=0, default=0)
+    month_margin: float = Field(ge=0, default=0, description="Маржа за месяц — для выполнения плана и ступеней (АРТ)")
     tax_rate: float = Field(ge=0, le=100, default=13.0)
     kpi2_revenue: float = Field(ge=0, default=0)
     kpi2_retention_pct: float = Field(ge=0, le=100, default=0)
+    # АБТ: реализация по типам продаж
+    sales_new: float = Field(ge=0, default=0)
+    sales_expansion: float = Field(ge=0, default=0)
+    sales_upgrade: float = Field(ge=0, default=0)
+    sales_renew: float = Field(ge=0, default=0)
+    sbis_goods: float = Field(ge=0, default=0)
 
 
 class PayrollOut(BaseModel):
@@ -55,6 +75,7 @@ class PayrollOut(BaseModel):
     working_days: int
     service_margin: float
     goods_margin: float
+    month_margin: float = 0
     bonus_percent: float
     service_factor: float
     base_salary: float
@@ -81,16 +102,28 @@ class PayrollOut(BaseModel):
     kpi2_paid: bool = False
     kpi2_bonus_percent: float = 5.0
     kpi2_min_retention_pct: float = 80.0
+    scheme: str = "margin"
+    sales_new: float = 0
+    sales_expansion: float = 0
+    sales_upgrade: float = 0
+    sales_renew: float = 0
+    sbis_goods: float = 0
+    sales_total: float = 0
+    bonus_new: float = 0
+    bonus_expansion: float = 0
+    bonus_upgrade: float = 0
+    bonus_renew: float = 0
+    bonus_sbis_goods: float = 0
 
     class Config:
         from_attributes = False
 
 
 def _ensure_can_calculate(profile: dict) -> None:
-    if profile.get("department_code") != PAYROLL_DEPARTMENT_CODE:
+    if profile.get("department_code") not in PAYROLL_DEPARTMENT_CODES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Расчёт заработной платы доступен только для отдела Развитие АРТ",
+            detail="Расчёт заработной платы недоступен для вашего отдела",
         )
 
 
@@ -113,12 +146,77 @@ def _resolve_bonus_percent(grade: dict, margin_for_plan: float) -> float:
 
 
 def _calc_kpi2(grade: dict, kpi2_revenue: float, kpi2_retention_pct: float) -> tuple[float, bool]:
-    if not grade.get("kpi2_enabled") or kpi2_revenue <= 0:
+    if not grade.get("kpi2_enabled"):
         return 0.0, False
     if float(kpi2_retention_pct) < float(grade.get("kpi2_min_retention_pct", 80.0)):
         return 0.0, False
+    if grade.get("kpi2_bonus_type") == "fixed":
+        # фиксированная премия (АБТ): достаточно сохранности, приход не нужен
+        return round(float(grade.get("kpi2_fixed_amount", 0)), 2), True
+    if kpi2_revenue <= 0:
+        return 0.0, False
     bonus = round(float(kpi2_revenue) * float(grade.get("kpi2_bonus_percent", 5.0)) / 100, 2)
     return bonus, True
+
+
+def _abt_rates(grade: dict, total_ds: float) -> tuple[dict, float | None]:
+    """Ставки по типам продаж и % выполнения нормы реализации ДС."""
+    plan = float(grade["plan_margin"]) if grade.get("plan_margin") is not None else 0.0
+    has_plan = bool(grade.get("has_plan")) and plan > 0
+    performance_pct = round(total_ds / plan * 100, 2) if has_plan else None
+    if performance_pct is None:
+        col = 0  # без плана — базовая колонка
+    elif performance_pct < 90:
+        col = 0
+    elif performance_pct < 100:
+        col = 1
+    else:
+        col = 2
+    rates = {k: v[col] for k, v in ABT_BASE_RATES.items()}
+    if performance_pct is not None and performance_pct >= 110:
+        # перевыполнение: только «новые продажи» по шкале оплат, типы 2–4 — колонка 2 без изменений
+        for threshold, rate in ABT_OVER_RATES:
+            if performance_pct >= threshold:
+                rates["new"] = rate
+                break
+    return rates, performance_pct
+
+
+def _calc_abt(grade: dict, p: PayrollCalcIn, kpi2_bonus: float) -> dict:
+    """Расчёт по схеме АБТ: оклад + проценты от реализации по типам продаж + KPI2."""
+    total_ds = round(p.sales_new + p.sales_expansion + p.sales_upgrade + p.sales_renew, 2)
+    rates, performance_pct = _abt_rates(grade, total_ds)
+    bonus_new = round(p.sales_new * rates["new"] / 100, 2)
+    bonus_expansion = round(p.sales_expansion * rates["expansion"] / 100, 2)
+    bonus_upgrade = round(p.sales_upgrade * rates["upgrade"] / 100, 2)
+    bonus_renew = round(p.sales_renew * rates["renew"] / 100, 2)
+    bonus_sbis_goods = round(p.sbis_goods * ABT_SBIS_GOODS_RATE / 100, 2)
+    services_bonus = round(bonus_new + bonus_expansion + bonus_upgrade + bonus_renew, 2)
+    bonus_total = round(services_bonus + bonus_sbis_goods, 2)
+    accrued_base = round(float(grade["base_salary"]) * p.worked_days / p.working_days, 2)
+    gross_pay = round(accrued_base + bonus_total + kpi2_bonus, 2)
+    tax_amount = round(gross_pay * p.tax_rate / 100, 2)
+    net_pay = round(gross_pay - tax_amount, 2)
+    return {
+        "accrued_base": accrued_base,
+        "services_bonus": services_bonus,
+        "goods_bonus": bonus_sbis_goods,
+        "bonus_total": bonus_total,
+        "gross_pay": gross_pay,
+        "tax_amount": tax_amount,
+        "net_pay": net_pay,
+        "bonus_new": bonus_new,
+        "bonus_expansion": bonus_expansion,
+        "bonus_upgrade": bonus_upgrade,
+        "bonus_renew": bonus_renew,
+        "bonus_sbis_goods": bonus_sbis_goods,
+        "margin_for_plan": total_ds,
+        "performance_pct": performance_pct,
+        "rate_new": rates["new"],
+        "rate_expansion": rates["expansion"],
+        "rate_upgrade": rates["upgrade"],
+        "rate_renew": rates["renew"],
+    }
 
 
 def _calc(base_salary: float, bonus_percent: float, service_factor: float, p: PayrollCalcIn, kpi2_bonus: float = 0) -> dict:
@@ -150,6 +248,7 @@ def _payroll_out(rec: PayrollRecord) -> dict:
         "working_days": rec.working_days,
         "service_margin": float(rec.service_margin),
         "goods_margin": float(rec.goods_margin),
+        "month_margin": float(rec.month_margin),
         "bonus_percent": float(rec.bonus_percent),
         "service_factor": float(rec.service_factor),
         "base_salary": float(rec.base_salary),
@@ -176,6 +275,20 @@ def _payroll_out(rec: PayrollRecord) -> dict:
         "kpi2_paid": bool(rec.kpi2_paid),
         "kpi2_bonus_percent": float(rec.grade_kpi2_bonus_percent),
         "kpi2_min_retention_pct": float(rec.grade_kpi2_min_retention_pct),
+        "scheme": rec.scheme or "margin",
+        "sales_new": float(rec.sales_new),
+        "sales_expansion": float(rec.sales_expansion),
+        "sales_upgrade": float(rec.sales_upgrade),
+        "sales_renew": float(rec.sales_renew),
+        "sbis_goods": float(rec.sbis_goods),
+        "sales_total": round(
+            float(rec.sales_new) + float(rec.sales_expansion) + float(rec.sales_upgrade)
+            + float(rec.sales_renew) + float(rec.sbis_goods), 2),
+        "bonus_new": float(rec.bonus_new),
+        "bonus_expansion": float(rec.bonus_expansion),
+        "bonus_upgrade": float(rec.bonus_upgrade),
+        "bonus_renew": float(rec.bonus_renew),
+        "bonus_sbis_goods": float(rec.bonus_sbis_goods),
     }
 
 
@@ -189,42 +302,87 @@ def calculate_payroll(payload: PayrollCalcIn, db: Session = Depends(get_db), pro
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пользователю не назначен грейд")
     base_salary = float(grade["base_salary"])
     service_factor = float(grade["service_factor"])
-    margin_for_plan = _margin_for_plan(payload.service_margin, payload.goods_margin)
-    bonus_percent = _resolve_bonus_percent(grade, margin_for_plan)
+    scheme = grade.get("scheme") or "margin"
     kpi2_bonus, kpi2_paid = _calc_kpi2(grade, payload.kpi2_revenue, payload.kpi2_retention_pct)
-    calc = _calc(base_salary, bonus_percent, service_factor, payload, kpi2_bonus)
     has_plan = bool(grade.get("has_plan"))
     plan_margin = float(grade["plan_margin"]) if grade.get("plan_margin") is not None else None
-    if has_plan and plan_margin and plan_margin > 0:
-        performance_pct = round(margin_for_plan / plan_margin * 100, 2)
+
+    if scheme == "abt":
+        calc = _calc_abt(grade, payload, kpi2_bonus)
+        margin_for_plan = calc.pop("margin_for_plan")
+        performance_pct = calc.pop("performance_pct")
+        calc.pop("rate_new"); calc.pop("rate_expansion"); calc.pop("rate_upgrade"); calc.pop("rate_renew")
+        bonus_percent = 0.0
+        record = PayrollRecord(
+            user_id=profile["id"],
+            period=payload.period,
+            worked_days=payload.worked_days,
+            working_days=payload.working_days,
+            service_margin=0,
+            goods_margin=0,
+            bonus_percent=bonus_percent,
+            service_factor=service_factor,
+            base_salary=base_salary,
+            tax_rate=payload.tax_rate,
+            grade_id=grade["id"],
+            grade_name=grade.get("name", grade["id"]),
+            has_plan=has_plan,
+            plan_margin=plan_margin,
+            margin_for_plan=margin_for_plan,
+            performance_pct=performance_pct,
+            kpi2_enabled=bool(grade.get("kpi2_enabled")),
+            kpi2_revenue=payload.kpi2_revenue,
+            kpi2_retention_pct=payload.kpi2_retention_pct,
+            kpi2_bonus_amount=kpi2_bonus,
+            kpi2_paid=kpi2_paid,
+            grade_kpi2_bonus_percent=float(grade.get("kpi2_bonus_percent", 5.0)),
+            grade_kpi2_min_retention_pct=float(grade.get("kpi2_min_retention_pct", 80.0)),
+            scheme="abt",
+            sales_new=payload.sales_new,
+            sales_expansion=payload.sales_expansion,
+            sales_upgrade=payload.sales_upgrade,
+            sales_renew=payload.sales_renew,
+            sbis_goods=payload.sbis_goods,
+            **calc,
+        )
     else:
-        performance_pct = None
-    record = PayrollRecord(
-        user_id=profile["id"],
-        period=payload.period,
-        worked_days=payload.worked_days,
-        working_days=payload.working_days,
-        service_margin=payload.service_margin,
-        goods_margin=payload.goods_margin,
-        bonus_percent=bonus_percent,
-        service_factor=service_factor,
-        base_salary=base_salary,
-        tax_rate=payload.tax_rate,
-        grade_id=grade["id"],
-        grade_name=grade.get("name", grade["id"]),
-        has_plan=has_plan,
-        plan_margin=plan_margin,
-        margin_for_plan=margin_for_plan,
-        performance_pct=performance_pct,
-        kpi2_enabled=bool(grade.get("kpi2_enabled")),
-        kpi2_revenue=payload.kpi2_revenue,
-        kpi2_retention_pct=payload.kpi2_retention_pct,
-        kpi2_bonus_amount=kpi2_bonus,
-        kpi2_paid=kpi2_paid,
-        grade_kpi2_bonus_percent=float(grade.get("kpi2_bonus_percent", 5.0)),
-        grade_kpi2_min_retention_pct=float(grade.get("kpi2_min_retention_pct", 80.0)),
-        **calc,
-    )
+        # АРТ: план и ступени считаются по отдельному показателю «Маржа за месяц»,
+        # а премии — по марже услуг/товаров (в них могут быть долги прошлых месяцев)
+        margin_for_plan = round(float(payload.month_margin), 2)
+        bonus_percent = _resolve_bonus_percent(grade, margin_for_plan)
+        calc = _calc(base_salary, bonus_percent, service_factor, payload, kpi2_bonus)
+        if has_plan and plan_margin and plan_margin > 0:
+            performance_pct = round(margin_for_plan / plan_margin * 100, 2)
+        else:
+            performance_pct = None
+        record = PayrollRecord(
+            user_id=profile["id"],
+            period=payload.period,
+            worked_days=payload.worked_days,
+            working_days=payload.working_days,
+            service_margin=payload.service_margin,
+            goods_margin=payload.goods_margin,
+            month_margin=payload.month_margin,
+            bonus_percent=bonus_percent,
+            service_factor=service_factor,
+            base_salary=base_salary,
+            tax_rate=payload.tax_rate,
+            grade_id=grade["id"],
+            grade_name=grade.get("name", grade["id"]),
+            has_plan=has_plan,
+            plan_margin=plan_margin,
+            margin_for_plan=margin_for_plan,
+            performance_pct=performance_pct,
+            kpi2_enabled=bool(grade.get("kpi2_enabled")),
+            kpi2_revenue=payload.kpi2_revenue,
+            kpi2_retention_pct=payload.kpi2_retention_pct,
+            kpi2_bonus_amount=kpi2_bonus,
+            kpi2_paid=kpi2_paid,
+            grade_kpi2_bonus_percent=float(grade.get("kpi2_bonus_percent", 5.0)),
+            grade_kpi2_min_retention_pct=float(grade.get("kpi2_min_retention_pct", 80.0)),
+            scheme="margin",
+            **calc,
+        )
     db.add(record)
     db.commit()
     db.refresh(record)

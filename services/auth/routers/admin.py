@@ -35,6 +35,9 @@ class GradeIn(BaseModel):
     kpi2_enabled: bool = False
     kpi2_bonus_percent: float = Field(default=5.0, ge=0, le=100)
     kpi2_min_retention_pct: float = Field(default=80.0, ge=0, le=100)
+    scheme: str = Field(default="margin", pattern="^(margin|abt)$")
+    kpi2_bonus_type: str = Field(default="percent", pattern="^(percent|fixed)$")
+    kpi2_fixed_amount: float = Field(default=0.0, ge=0)
     tiers: List[TierIn] = []
 
 
@@ -56,6 +59,11 @@ class GradeOut(BaseModel):
     kpi2_enabled: bool = False
     kpi2_bonus_percent: float = 5.0
     kpi2_min_retention_pct: float = 80.0
+    scheme: str = "margin"
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
+    kpi2_bonus_type: str = "percent"
+    kpi2_fixed_amount: float = 0.0
     is_active: bool
     tiers: List[TierOut] = []
 
@@ -64,6 +72,11 @@ def _grade_out(g: Grade, db: Session) -> dict:
     tiers = db.scalars(
         select(GradeTier).where(GradeTier.grade_id == g.id).order_by(GradeTier.min_pct)
     ).all()
+    dept_name = None
+    if g.department_id is not None:
+        from app.models import Department
+        dept = db.get(Department, g.department_id)
+        dept_name = dept.name if dept else None
     return {
         "id": g.id,
         "name": g.name,
@@ -76,6 +89,11 @@ def _grade_out(g: Grade, db: Session) -> dict:
         "kpi2_enabled": bool(g.kpi2_enabled),
         "kpi2_bonus_percent": float(g.kpi2_bonus_percent),
         "kpi2_min_retention_pct": float(g.kpi2_min_retention_pct),
+        "scheme": g.scheme or "margin",
+        "department_id": g.department_id,
+        "department_name": dept_name,
+        "kpi2_bonus_type": g.kpi2_bonus_type or "percent",
+        "kpi2_fixed_amount": float(g.kpi2_fixed_amount or 0),
         "is_active": bool(g.is_active),
         "tiers": [{"id": t.id, "min_pct": float(t.min_pct), "bonus_percent": float(t.bonus_percent)} for t in tiers],
     }
@@ -111,6 +129,10 @@ def create_grade(payload: GradeIn, db: Session = Depends(get_db), head: User = D
         kpi2_enabled=payload.kpi2_enabled,
         kpi2_bonus_percent=payload.kpi2_bonus_percent,
         kpi2_min_retention_pct=payload.kpi2_min_retention_pct,
+        scheme=payload.scheme,
+        department_id=head.department_id,
+        kpi2_bonus_type=payload.kpi2_bonus_type,
+        kpi2_fixed_amount=payload.kpi2_fixed_amount,
         is_active=True,
     )
     db.add(grade)
@@ -142,6 +164,8 @@ def update_grade(grade_id: str, payload: GradeIn, db: Session = Depends(get_db),
     grade.kpi2_enabled = payload.kpi2_enabled
     grade.kpi2_bonus_percent = payload.kpi2_bonus_percent
     grade.kpi2_min_retention_pct = payload.kpi2_min_retention_pct
+    grade.kpi2_bonus_type = payload.kpi2_bonus_type
+    grade.kpi2_fixed_amount = payload.kpi2_fixed_amount
 
     db.query(GradeTier).filter(GradeTier.grade_id == grade.id).delete()
     for t in payload.tiers:
@@ -243,6 +267,8 @@ def change_user_grade(user_id: int, payload: ChangeGradeIn, request: Request,
     grade = db.get(Grade, payload.grade_id)
     if not grade or not grade.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд не найден или архивирован")
+    if grade.department_id is not None and grade.department_id != u.department_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд не соответствует отделу сотрудника")
     old_grade = u.grade_id
     u.grade_id = grade.id
     db.commit()

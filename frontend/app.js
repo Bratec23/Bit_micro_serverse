@@ -79,15 +79,23 @@ const App = (() => {
     const sel = $("#dept");
     sel.innerHTML = '<option value="">— Выберите отдел —</option>' + departmentsCache.map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join("");
   }
-  function renderGradeSelect() {
+  function renderGradeSelect(deptId) {
     const sel = $("#grade");
-    const sorted = gradesCache.slice().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    if (!deptId) {
+      sel.innerHTML = '<option value="">Сначала выберите отдел</option>';
+      return;
+    }
+    // мотивация отдела: показываем только грейды выбранного отдела
+    const list = gradesCache.filter(g => g.department_id == null || g.department_id === deptId);
+    const sorted = list.slice().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    if (!sorted.length) { sel.innerHTML = '<option value="">Для отдела нет доступных грейдов</option>'; return; }
     sel.innerHTML = '<option value="">— Выберите грейд —</option>' + sorted.map((g, i) => `<option value="${g.id}">${i + 1}. ${escapeHtml(g.name)}</option>`).join("");
   }
 
   async function onDeptChange() {
     const deptId = parseInt($("#dept").value);
-    if (!deptId) { $("#pos").innerHTML = '<option value="">Сначала выберите отдел</option>'; return; }
+    if (!deptId) { $("#pos").innerHTML = '<option value="">Сначала выберите отдел</option>'; renderGradeSelect(null); return; }
+    renderGradeSelect(deptId);
     try {
       positionsCache = await api(`/api/positions?department_id=${deptId}`, { auth: false });
       const sel = $("#pos");
@@ -226,16 +234,17 @@ const App = (() => {
     if (!gradesAdminCache.length) { wrap.innerHTML = '<div class="empty">Грейдов нет</div>'; return; }
     wrap.innerHTML = `
       <table class="data-table">
-        <thead><tr><th>№</th><th>ID</th><th>Название</th><th>Оклад</th><th>%</th><th>Коэф.</th><th>План</th><th>Ступеней</th><th>Статус</th><th></th></tr></thead>
+        <thead><tr><th>№</th><th>ID</th><th>Название</th><th>Мотивация</th><th>Отдел</th><th>Оклад</th><th>%</th><th>Коэф.</th><th>План</th><th>Статус</th><th></th></tr></thead>
         <tbody>${gradesAdminCache.map((g, i) => `<tr class="${g.is_active ? "" : "grade-row-archived"}">
           <td data-label="№" class="tnum">${g.sort_order}</td>
           <td data-label="ID" class="tnum">${escapeHtml(g.id)}</td>
           <td data-label="Название">${escapeHtml(g.name)}</td>
+          <td data-label="Мотивация"><span class="grade-status-badge ${g.scheme === "abt" ? "grade-status-archived" : "grade-status-active"}">${g.scheme === "abt" ? "СБИС (АБТ)" : "Маржа (АРТ)"}</span></td>
+          <td data-label="Отдел" class="text-muted">${escapeHtml(g.department_name || "—")}</td>
           <td data-label="Оклад" class="tnum">${formatMoney(g.base_salary)}</td>
-          <td data-label="%" class="tnum">${g.bonus_percent}%</td>
-          <td data-label="Коэф." class="tnum">${Number(g.service_factor).toFixed(2)}</td>
+          <td data-label="%" class="tnum">${g.scheme === "abt" ? "сетка" : g.bonus_percent + "%"}</td>
+          <td data-label="Коэф." class="tnum">${g.scheme === "abt" ? "—" : Number(g.service_factor).toFixed(2)}</td>
           <td data-label="План" class="tnum">${g.has_plan ? formatMoney(g.plan_margin) : "—"}</td>
-          <td data-label="Ступеней" class="tnum">${(g.tiers||[]).length}</td>
           <td data-label="Статус"><span class="grade-status-badge ${g.is_active ? "grade-status-active" : "grade-status-archived"}">${g.is_active ? "Активен" : "Архив"}</span></td>
           <td data-label="" class="row-action">
             <button class="btn-ghost btn-sm" onclick="App.openGradeEditor('${g.id}')" title="Редактировать">✎</button>
@@ -253,6 +262,8 @@ const App = (() => {
     $("#ge-id").value = isEdit ? g.id : "";
     $("#ge-id").disabled = isEdit;
     $("#ge-name").value = isEdit ? g.name : "";
+    $("#ge-scheme").value = isEdit ? (g.scheme || "margin") : "margin";
+    $("#ge-scheme").disabled = isEdit;
     $("#ge-salary").value = isEdit ? formatNumber(g.base_salary) : formatNumber(0);
     $("#ge-bonus").value = isEdit ? g.bonus_percent : 0;
     $("#ge-factor").value = isEdit ? g.service_factor : 0.5;
@@ -261,16 +272,35 @@ const App = (() => {
     $("#ge-plan").value = isEdit && g.plan_margin != null ? formatNumber(g.plan_margin) : formatNumber(0);
     $("#ge-kpi2-enabled").checked = isEdit ? g.kpi2_enabled : false;
     $("#ge-kpi2-bonus").value = isEdit ? g.kpi2_bonus_percent : 5;
+    $("#ge-kpi2-fixed").value = isEdit ? (g.kpi2_fixed_amount || 0) : 5000;
     $("#ge-kpi2-min").value = isEdit ? g.kpi2_min_retention_pct : 80;
     const tiersList = $("#ge-tiers-list");
     tiersList.innerHTML = "";
     if (isEdit && g.tiers && g.tiers.length) {
       g.tiers.forEach(t => addTierRowWithValue(t.min_pct, t.bonus_percent));
     }
+    onGradeSchemeChange();
     toggleGradePlan();
     $("#grade-editor-error").style.display = "none";
     $("#grade-editor-modal").style.display = "flex";
     attachAllMasksIn($("#grade-editor-modal"));
+  }
+
+  function onGradeSchemeChange() {
+    const scheme = $("#ge-scheme").value;
+    const isAbtScheme = scheme === "abt";
+    // для АБТ базовый %, коэф. услуг и ступени не используются — сетка ставок фиксированная
+    $("#ge-bonus-group").style.display = isAbtScheme ? "none" : "block";
+    $("#ge-factor-group").style.display = isAbtScheme ? "none" : "block";
+    // KPI2: у АБТ фиксированная сумма, у АРТ — процент от прихода
+    $("#ge-kpi2-pct-group").style.display = isAbtScheme ? "none" : "block";
+    $("#ge-kpi2-fixed-group").style.display = isAbtScheme ? "block" : "none";
+    const hint = $("#ge-kpi2-hint");
+    if (hint) hint.textContent = isAbtScheme
+      ? "Премия KPI2 — фиксированная сумма, выплачивается если сохранность ≥ минимального значения."
+      : "Премия KPI2 = приход × %, выплачивается только если сохранность ≥ минимального значения.";
+    const tiersSection = $("#ge-tiers-section");
+    if (tiersSection) tiersSection.style.display = isAbtScheme ? "none" : "";
   }
 
   function closeGradeEditor() {
@@ -280,10 +310,15 @@ const App = (() => {
 
   function toggleGradePlan() {
     const hasPlan = $("#ge-has-plan").checked;
+    const isAbtScheme = $("#ge-scheme") && $("#ge-scheme").value === "abt";
     const planGroup = $("#ge-plan-group");
     const tiersSection = $("#ge-tiers-section");
-    if (planGroup) planGroup.style.display = hasPlan ? "block" : "none";
-    if (tiersSection) tiersSection.style.display = hasPlan ? "block" : "none";
+    if (planGroup) {
+      planGroup.style.display = hasPlan ? "block" : "none";
+      const planLabel = planGroup.querySelector(".form-label");
+      if (planLabel) planLabel.textContent = isAbtScheme ? "Норма реализации ДС (план), ₽" : "План по марже, ₽";
+    }
+    if (tiersSection) tiersSection.style.display = (hasPlan && !isAbtScheme) ? "block" : "none";
   }
 
   function addTierRow() { addTierRowWithValue(0, 0); }
@@ -318,19 +353,24 @@ const App = (() => {
     const errEl = $("#grade-editor-error");
     errEl.style.display = "none";
     const hasPlan = $("#ge-has-plan").checked;
+    const scheme = $("#ge-scheme").value || "margin";
+    const isAbtScheme = scheme === "abt";
     const body = {
       id: $("#ge-id").value.trim().toLowerCase(),
       name: $("#ge-name").value.trim(),
       base_salary: parseNumInput($("#ge-salary")),
-      bonus_percent: parseFloat($("#ge-bonus").value) || 0,
-      service_factor: parseFloat($("#ge-factor").value) || 0,
+      bonus_percent: isAbtScheme ? 0 : (parseFloat($("#ge-bonus").value) || 0),
+      service_factor: isAbtScheme ? 0.5 : (parseFloat($("#ge-factor").value) || 0),
       sort_order: parseInt($("#ge-sort").value) || 0,
       has_plan: hasPlan,
       plan_margin: hasPlan ? parseNumInput($("#ge-plan")) : null,
       kpi2_enabled: $("#ge-kpi2-enabled").checked,
       kpi2_bonus_percent: parseFloat($("#ge-kpi2-bonus").value) || 5,
       kpi2_min_retention_pct: parseFloat($("#ge-kpi2-min").value) || 80,
-      tiers: hasPlan ? collectTiers() : [],
+      scheme: scheme,
+      kpi2_bonus_type: isAbtScheme ? "fixed" : "percent",
+      kpi2_fixed_amount: isAbtScheme ? (parseFloat($("#ge-kpi2-fixed").value) || 0) : 0,
+      tiers: (hasPlan && !isAbtScheme) ? collectTiers() : [],
     };
     if (!body.name) { errEl.textContent = "Введите название"; errEl.style.display = "block"; return; }
     if (!editingGradeId && !body.id) { errEl.textContent = "Введите идентификатор"; errEl.style.display = "block"; return; }
@@ -410,35 +450,51 @@ const App = (() => {
     if ($("#calc-form")) attachAllMasksIn($("#calc-form"));
   }
 
+  function isAbt() {
+    const user = getUser();
+    return !!(user && user.grade && user.grade.scheme === "abt");
+  }
+
   function loadGradePill() {
     const user = getUser();
     if (!user) return;
     const g = user.grade || {};
+    const abt = g.scheme === "abt";
     const planText = g.has_plan && g.plan_margin != null ? formatMoney(g.plan_margin) : "—";
+    // переключаем блоки ввода: маржа (АРТ) vs реализация (АБТ)
+    const mf = $("#margin-fields"); if (mf) mf.style.display = abt ? "none" : "block";
+    const af = $("#abt-fields"); if (af) af.style.display = abt ? "block" : "none";
     $("#grade-pill").innerHTML = `
       <div class="gp-grid">
         <div class="gp-item"><div class="gp-label">ФИО</div><div class="gp-value">${escapeHtml(user.full_name || "—")}</div></div>
         <div class="gp-item"><div class="gp-label">Должность</div><div class="gp-value">${escapeHtml(user.position ? user.position.name : "—")}</div></div>
         <div class="gp-item"><div class="gp-label">Грейд</div><div class="gp-value">${escapeHtml(g.name || "—")}</div></div>
         <div class="gp-item"><div class="gp-label">Оклад</div><div class="gp-value">${g.base_salary != null ? formatMoney(g.base_salary) : "—"}</div></div>
-        <div class="gp-item"><div class="gp-label">Коэф. услуг</div><div class="gp-value">${g.service_factor != null ? Number(g.service_factor).toFixed(2) : "—"}</div></div>
-        <div class="gp-item"><div class="gp-label">План по марже</div><div class="gp-value">${planText}</div></div>
+        ${abt ? "" : `<div class="gp-item"><div class="gp-label">Коэф. услуг</div><div class="gp-value">${g.service_factor != null ? Number(g.service_factor).toFixed(2) : "—"}</div></div>`}
+        <div class="gp-item"><div class="gp-label">${abt ? "Норма реализации ДС" : "План по марже"}</div><div class="gp-value">${planText}</div></div>
       </div>
       <div id="plan-progress" class="plan-progress" style="display:${g.has_plan ? "block" : "none"}">
         <div class="plan-progress-row">
-          <span class="plan-label">Маржа за период:</span> <b id="plan-margin-now">0 ₽</b>
-          <span class="plan-muted">| Маржа для плана (−5% НДС): <b id="plan-margin-net">0 ₽</b></span>
+          <span class="plan-label">${abt ? "Реализация за период:" : "Маржа за период:"}</span> <b id="plan-margin-now">0 ₽</b>
+          ${abt ? "" : `<span class="plan-muted">| Маржа за месяц (для плана): <b id="plan-margin-net">0 ₽</b></span>`}
           <span class="plan-muted">| Выполнено: <b id="plan-perf">0%</b></span>
-          <span class="plan-muted">| Ступень: <b id="plan-tier">—</b></span>
+          <span class="plan-muted">| ${abt ? "Ставки:" : "Ступень:"} <b id="plan-tier">—</b></span>
         </div>
         <div class="plan-bar-wrap"><div class="plan-bar" id="plan-bar"></div>
-          <div class="plan-bar-tick" style="left:45%"></div>
-          <div class="plan-bar-tick" style="left:65%"></div>
-          <div class="plan-bar-tick" style="left:75%"></div>
-          <div class="plan-bar-tick" style="left:100%"></div>
+          ${abt
+            ? `<div class="plan-bar-tick" style="left:45%"></div>
+               <div class="plan-bar-tick" style="left:50%"></div>
+               <div class="plan-bar-tick" style="left:55%"></div>
+               <div class="plan-bar-tick" style="left:65%"></div>`
+            : `<div class="plan-bar-tick" style="left:45%"></div>
+               <div class="plan-bar-tick" style="left:65%"></div>
+               <div class="plan-bar-tick" style="left:75%"></div>
+               <div class="plan-bar-tick" style="left:100%"></div>`}
         </div>
         <div class="plan-bar-scale">
-          <span>0%</span><span>90%</span><span>130%</span><span>150%</span><span>200%</span>
+          ${abt
+            ? `<span>0%</span><span>90%</span><span>100%</span><span>110%</span><span>130%+</span>`
+            : `<span>0%</span><span>90%</span><span>130%</span><span>150%</span><span>200%</span>`}
         </div>
       </div>`;
     updateLiveEstimate();
@@ -446,7 +502,10 @@ const App = (() => {
   }
 
   function attachLiveInputs() {
-    ["#calc-svc-margin", "#calc-goods-margin"].forEach(sel => {
+    const sels = isAbt()
+      ? ["#calc-sales-new", "#calc-sales-expansion", "#calc-sales-upgrade", "#calc-sales-renew", "#calc-sales-sbis"]
+      : ["#calc-month-margin", "#calc-svc-margin", "#calc-goods-margin"];
+    sels.forEach(sel => {
       const el = $(sel);
       if (el && !el.dataset.liveAttached) {
         el.dataset.liveAttached = "1";
@@ -455,18 +514,43 @@ const App = (() => {
     });
   }
 
+  function abtRatesFor(grade, totalDs) {
+    const plan = Number(grade.plan_margin) || 0;
+    const hasPlan = grade.has_plan && plan > 0;
+    const perf = hasPlan ? round2(totalDs / plan * 100) : null;
+    const col = perf === null ? 0 : perf < 90 ? 0 : perf < 100 ? 1 : 2;
+    const base = { "new": [8, 10, 13], expansion: [7, 9, 11], upgrade: [5, 7, 9], renew: [1.2, 1.3, 1.5] };
+    const rates = {
+      "new": base["new"][col], expansion: base.expansion[col],
+      upgrade: base.upgrade[col], renew: base.renew[col],
+    };
+    if (perf !== null && perf >= 110) {
+      // перевыполнение: только «новые продажи», типы 2–4 — без изменений
+      rates["new"] = perf >= 130 ? 20 : perf >= 120 ? 17 : 15;
+    }
+    return { rates, perf };
+  }
+
   function updateLiveEstimate() {
     const user = getUser();
     if (!user || !user.grade || !user.grade.has_plan) return;
     const g = user.grade;
+    if (g.scheme === "abt") {
+      const totalDs = ["#calc-sales-new", "#calc-sales-expansion", "#calc-sales-upgrade", "#calc-sales-renew"]
+        .reduce((s, sel) => s + parseNumInput($(sel)), 0);
+      const { rates, perf } = abtRatesFor(g, totalDs);
+      setPlanUI(totalDs, null, perf || 0, `${rates["new"]}/${rates.expansion}/${rates.upgrade}/${rates.renew}%`);
+      return;
+    }
     const svc = parseNumInput($("#calc-svc-margin"));
     const goods = parseNumInput($("#calc-goods-margin"));
     const marginTotal = svc + goods;
-    const marginNet = round2(marginTotal * 0.95);
+    // план и ступени — по отдельному полю «Маржа за месяц» (без долгов прошлых месяцев)
+    const monthMargin = parseNumInput($("#calc-month-margin"));
     const plan = Number(g.plan_margin) || 0;
-    const perf = plan > 0 ? round2(marginNet / plan * 100) : 0;
+    const perf = plan > 0 ? round2(monthMargin / plan * 100) : 0;
     const tier = resolveTier(g, perf);
-    setPlanUI(marginTotal, marginNet, perf, tier);
+    setPlanUI(marginTotal, monthMargin, perf, tier);
   }
 
   function resolveTier(grade, perf) {
@@ -479,12 +563,14 @@ const App = (() => {
 
   function setPlanUI(marginTotal, marginNet, perf, tier) {
     const mNow = $("#plan-margin-now"); if (mNow) mNow.textContent = formatMoney(marginTotal);
-    const mNet = $("#plan-margin-net"); if (mNet) mNet.textContent = formatMoney(marginNet);
+    const mNet = $("#plan-margin-net"); if (mNet && marginNet != null) mNet.textContent = formatMoney(marginNet);
     const pEl = $("#plan-perf"); if (pEl) pEl.textContent = perf + "%";
     const tEl = $("#plan-tier");
     if (tEl) {
-      tEl.textContent = tier + "%";
-      tEl.className = tier === 0 ? "plan-tier-zero" : "plan-tier-ok";
+      const tierText = typeof tier === "string" ? tier : tier + "%";
+      const zero = typeof tier !== "string" && tier === 0;
+      tEl.textContent = tierText;
+      tEl.className = zero ? "plan-tier-zero" : "plan-tier-ok";
     }
     const bar = $("#plan-bar");
     if (bar) {
@@ -559,9 +645,20 @@ const App = (() => {
     const user = getUser();
     const g = (user && user.grade) || {};
     if (!g.kpi2_enabled) { hint.textContent = ""; hint.className = "kpi2-hint"; return; }
-    const rev = parseNumInput($("#kpi2-revenue"));
     const ret = parseFloat($("#kpi2-retention").value) || 0;
     const minRet = g.kpi2_min_retention_pct || 80;
+    if (g.kpi2_bonus_type === "fixed") {
+      const amt = g.kpi2_fixed_amount || 0;
+      if (ret < minRet) {
+        hint.textContent = `Сохранность ${ret}% < ${minRet}% — премия KPI2 НЕ выплачивается`;
+        hint.className = "kpi2-hint kpi2-hint-blocked";
+      } else {
+        hint.textContent = `Премия KPI2: ${formatMoney(amt)} (сохранность ${ret}% ≥ ${minRet}%)`;
+        hint.className = "kpi2-hint kpi2-hint-ok";
+      }
+      return;
+    }
+    const rev = parseNumInput($("#kpi2-revenue"));
     const pct = g.kpi2_bonus_percent || 5;
     if (rev <= 0) { hint.textContent = "Введите приход — премия рассчитается автоматически"; hint.className = "kpi2-hint"; return; }
     if (ret < minRet) {
@@ -579,6 +676,9 @@ const App = (() => {
     const g = (user && user.grade) || {};
     const sec = $("#kpi2-section");
     if (sec) sec.style.display = g.kpi2_enabled ? "block" : "none";
+    // фиксированный KPI2 (АБТ): приход не нужен — только сохранность
+    const revGroup = $("#kpi2-revenue-group");
+    if (revGroup) revGroup.style.display = g.kpi2_bonus_type === "fixed" ? "none" : "block";
   }
 
   function attachKpi2Listeners() {
@@ -589,41 +689,63 @@ const App = (() => {
   }
 
   async function calculate() {
+    const abt = isAbt();
     const body = {
       period: ($("#calc-period").value || new Date().toISOString().slice(0, 7)),
       worked_days: parseInt($("#calc-worked").value),
       working_days: parseInt($("#calc-working").value),
-      service_margin: parseNumInput($("#calc-svc-margin")),
-      goods_margin: parseNumInput($("#calc-goods-margin")),
+      service_margin: abt ? 0 : parseNumInput($("#calc-svc-margin")),
+      goods_margin: abt ? 0 : parseNumInput($("#calc-goods-margin")),
+      month_margin: abt ? 0 : parseNumInput($("#calc-month-margin")),
       tax_rate: parseFloat($("#calc-tax").value) || 13,
       kpi2_revenue: parseNumInput($("#kpi2-revenue")),
       kpi2_retention_pct: parseFloat($("#kpi2-retention").value) || 0,
+      sales_new: abt ? parseNumInput($("#calc-sales-new")) : 0,
+      sales_expansion: abt ? parseNumInput($("#calc-sales-expansion")) : 0,
+      sales_upgrade: abt ? parseNumInput($("#calc-sales-upgrade")) : 0,
+      sales_renew: abt ? parseNumInput($("#calc-sales-renew")) : 0,
+      sbis_goods: abt ? parseNumInput($("#calc-sales-sbis")) : 0,
     };
     const resBox = $("#calc-result");
     resBox.style.display = "none";
     try {
       const r = await api("/api/payroll/calculate", { method: "POST", body });
-      resBox.innerHTML = `
-        <div class="cr-title">Расчёт за ${escapeHtml(r.period)} — сохранён</div>
-        <div class="cr-grid">
-          <div class="cr-item"><div class="cr-label">Начислено (оклад)</div><div class="cr-value">${formatMoney(r.accrued_base)}</div></div>
+      const bonusRows = r.scheme === "abt" ? `
+          <div class="cr-item"><div class="cr-label">Премия: новые продажи</div><div class="cr-value">${formatMoney(r.bonus_new)}</div></div>
+          <div class="cr-item"><div class="cr-label">Премия: расширение</div><div class="cr-value">${formatMoney(r.bonus_expansion)}</div></div>
+          <div class="cr-item"><div class="cr-label">Премия: апгрейд</div><div class="cr-value">${formatMoney(r.bonus_upgrade)}</div></div>
+          <div class="cr-item"><div class="cr-label">Премия: продление</div><div class="cr-value">${formatMoney(r.bonus_renew)}</div></div>
+          <div class="cr-item"><div class="cr-label">Премия: товары СБИС (10%)</div><div class="cr-value">${formatMoney(r.bonus_sbis_goods)}</div></div>` : `
           <div class="cr-item"><div class="cr-label">Премия за услуги</div><div class="cr-value">${formatMoney(r.services_bonus)}</div></div>
-          <div class="cr-item"><div class="cr-label">Премия за товар</div><div class="cr-value">${formatMoney(r.goods_bonus)}</div></div>
-          ${r.kpi2_bonus_amount > 0 ? `<div class="cr-item"><div class="cr-label">Премия за сохранность (KPI2)</div><div class="cr-value">${formatMoney(r.kpi2_bonus_amount)}</div></div>` : ""}
-          <div class="cr-item"><div class="cr-label">Премия итого</div><div class="cr-value">${formatMoney(r.bonus_total_with_kpi2)}</div></div>
-          <div class="cr-item"><div class="cr-label">Начислено всего</div><div class="cr-value">${formatMoney(r.gross_pay)}</div></div>
-          <div class="cr-item"><div class="cr-label">НДФЛ (${r.tax_rate}%)</div><div class="cr-value">-${formatMoney(r.tax_amount)}</div></div>
-          <div class="cr-item cr-net"><div class="cr-label">К выплате</div><div class="cr-value">${formatMoney(r.net_pay)}</div></div>
-        </div>
-        
-        ${r.kpi2_enabled && r.kpi2_revenue > 0 ? `
+          <div class="cr-item"><div class="cr-label">Премия за товар</div><div class="cr-value">${formatMoney(r.goods_bonus)}</div></div>`;
+      const kpi2Card = r.scheme === "abt"
+        ? (r.kpi2_enabled && r.kpi2_retention_pct > 0 ? `
+        <div class="kpi2-result-card ${r.kpi2_paid ? "kpi2-paid" : "kpi2-blocked"}">
+          <div class="kpi2-result-title">KPI 2 — премия за сохранность клиентов</div>
+          <div class="kpi2-result-row"><span>Сохранность клиентов:</span> <b>${r.kpi2_retention_pct}%</b> ${r.kpi2_paid ? "✓" : "✗ < (" + r.kpi2_min_retention_pct + "%)"}</div>
+          <div class="kpi2-result-row"><span>Премия (фикс.):</span> <b>${formatMoney(r.kpi2_bonus_amount)}</b></div>
+          <div class="kpi2-result-status ${r.kpi2_paid ? "kpi2-status-ok" : "kpi2-status-no"}">${r.kpi2_paid ? "Премия выплачивается" : "Премия не выплачивается — сохранность ниже " + r.kpi2_min_retention_pct + "%"}</div>
+        </div>` : "")
+        : (r.kpi2_enabled && r.kpi2_revenue > 0 ? `
         <div class="kpi2-result-card ${r.kpi2_paid ? "kpi2-paid" : "kpi2-blocked"}">
           <div class="kpi2-result-title">KPI 2 — премия за сохранность клиентов</div>
           <div class="kpi2-result-row"><span>Приход:</span> <b>${formatMoney(r.kpi2_revenue)}</b></div>
           <div class="kpi2-result-row"><span>Сохранность клиентов:</span> <b>${r.kpi2_retention_pct}%</b> ${r.kpi2_paid ? "✓" : "✗ < (" + r.kpi2_min_retention_pct + "%)"}</div>
           <div class="kpi2-result-row"><span>Премия (${r.kpi2_bonus_percent}%):</span> <b>${formatMoney(r.kpi2_bonus_amount)}</b></div>
           <div class="kpi2-result-status ${r.kpi2_paid ? "kpi2-status-ok" : "kpi2-status-no"}">${r.kpi2_paid ? "Премия выплачивается" : "Премия не выплачивается — сохранность ниже " + r.kpi2_min_retention_pct + "%"}</div>
-        </div>` : ""}
+        </div>` : "");
+      resBox.innerHTML = `
+        <div class="cr-title">Расчёт за ${escapeHtml(r.period)} — сохранён</div>
+        <div class="cr-grid">
+          <div class="cr-item"><div class="cr-label">Начислено (оклад)</div><div class="cr-value">${formatMoney(r.accrued_base)}</div></div>
+          ${bonusRows}
+          ${r.kpi2_bonus_amount > 0 ? `<div class="cr-item"><div class="cr-label">Премия за сохранность (KPI2)</div><div class="cr-value">${formatMoney(r.kpi2_bonus_amount)}</div></div>` : ""}
+          <div class="cr-item"><div class="cr-label">Премия итого</div><div class="cr-value">${formatMoney(r.bonus_total_with_kpi2)}</div></div>
+          <div class="cr-item"><div class="cr-label">Начислено всего</div><div class="cr-value">${formatMoney(r.gross_pay)}</div></div>
+          <div class="cr-item"><div class="cr-label">НДФЛ (${r.tax_rate}%)</div><div class="cr-value">-${formatMoney(r.tax_amount)}</div></div>
+          <div class="cr-item cr-net"><div class="cr-label">К выплате</div><div class="cr-value">${formatMoney(r.net_pay)}</div></div>
+        </div>
+        ${kpi2Card}
 <div class="cr-actions">
           <button class="btn-excel" onclick="App.exportRecord(${r.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Скачать Excel</button>
         </div>`;
@@ -647,7 +769,7 @@ const App = (() => {
             <td data-label="Период">${escapeHtml(r.period)}</td>
             <td data-label="Грейд" class="text-muted">${escapeHtml(r.grade_name)}</td>
             <td data-label="Дни" class="tnum">${r.worked_days}/${r.working_days}</td>
-            <td data-label="Маржа усл./товар" class="tnum">${formatMoney(r.service_margin)} / ${formatMoney(r.goods_margin)}</td>
+            <td data-label="Маржа усл./товар" class="tnum">${r.scheme === "abt" ? formatMoney(r.sales_total) + " (реал.)" : formatMoney(r.service_margin) + " / " + formatMoney(r.goods_margin)}</td>
             <td data-label="Оклад" class="tnum">${formatMoney(r.base_salary)}</td>
             <td data-label="Премия" class="tnum">${formatMoney(r.bonus_total_with_kpi2 || r.bonus_total)}</td>
             <td data-label="Gross" class="tnum">${formatMoney(r.gross_pay)}</td>
@@ -778,7 +900,7 @@ const App = (() => {
       const u = await api("/api/auth/me");
       const deptName = u.department ? u.department.name : "—";
       const positionsOpts = positionsCache.filter(p => p.department_id === u.department.id).map(p => `<option value="${p.id}" ${u.position && u.position.id === p.id ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("");
-      const gradesOpts = gradesCache.map(g => `<option value="${g.id}" ${u.grade && u.grade.id === g.id ? "selected" : ""}>${escapeHtml(g.name)}</option>`).join("");
+      const gradesOpts = gradesCache.filter(g => g.department_id == null || g.department_id === u.department.id).map(g => `<option value="${g.id}" ${u.grade && u.grade.id === g.id ? "selected" : ""}>${escapeHtml(g.name)}</option>`).join("");
       card.innerHTML = `
         <div class="profile-grid">
           <div class="form-group"><label class="form-label">ФИО</label><input class="form-input" id="prof-name" value="${escapeHtml(u.full_name)}"></div>
@@ -811,6 +933,7 @@ const App = (() => {
   }
 
   function showFormula() {
+    if (isAbt()) return showFormulaAbt();
     const user = getUser();
     const g = (user && user.grade) ? user.grade : { base_salary: 0, bonus_percent: 0, service_factor: 0.5, has_plan: false, plan_margin: null, tiers: [] };
     const svc = parseNumInput($("#calc-svc-margin"));
@@ -820,11 +943,12 @@ const App = (() => {
     const tax = parseFloat($("#calc-tax").value) || 13;
     const accrued = round2(g.base_salary * worked / working);
     const marginTotal = svc + goods;
-    const marginNet = round2(marginTotal * 0.95);
+    // план и ступень — по «Марже за месяц» (отдельный показатель без долгов прошлых месяцев)
+    const monthMargin = parseNumInput($("#calc-month-margin"));
     let bonusPercent = g.bonus_percent || 0;
     let perf = null;
     if (g.has_plan && g.plan_margin && g.plan_margin > 0) {
-      perf = round2(marginNet / g.plan_margin * 100);
+      perf = round2(monthMargin / g.plan_margin * 100);
       bonusPercent = resolveTier(g, perf);
     }
     const svcBonus = round2(svc * g.service_factor * bonusPercent / 100);
@@ -840,7 +964,7 @@ const App = (() => {
       planHtml = `
         <div class="formula-section">
           <div class="formula-section-title">0. План и ступень</div>
-          <div class="formula-line"><span class="ftxt">План</span><span class="fsep">=</span><span class="fval">${formatMoney(g.plan_margin)}</span><span class="fsep">·</span><span class="ftxt">Маржа для плана</span><span class="fsep">=</span><span class="fval">${formatMoney(marginNet)}</span><span class="fsep">(−5% НДС)</span></div>
+          <div class="formula-line"><span class="ftxt">План</span><span class="fsep">=</span><span class="fval">${formatMoney(g.plan_margin)}</span><span class="fsep">·</span><span class="ftxt">Маржа за месяц</span><span class="fsep">=</span><span class="fval">${formatMoney(monthMargin)}</span></div>
           <div class="formula-line"><span class="ftxt">Выполнение</span><span class="fsep">=</span><span class="fval">${perf}%</span><span class="fsep">→</span><span class="fresult">Ступень: ${bonusPercent}%</span></div>
         </div>`;
     }
@@ -868,6 +992,77 @@ const App = (() => {
         </div>
         <div class="formula-section">
           <div class="formula-section-title">5. НДФЛ</div>
+          <div class="formula-line"><span class="ftxt">${tax}%</span><span class="fsep">от</span><span class="fval">${formatMoney(gross)}</span><span class="fsep">=</span><span class="fresult fresult-mute">-${formatMoney(taxAmt)}</span></div>
+        </div>
+        <div class="formula-section formula-total">
+          <div class="formula-line"><span class="ftotal-label">К выплате</span><span class="fsep">=</span><span class="ftotal-value">${formatMoney(net)}</span></div>
+        </div>
+        <div class="modal-actions"><button class="btn-accent" onclick="this.closest('.modal-bg').remove()">Понятно</button></div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+
+  function showFormulaAbt() {
+    const user = getUser();
+    const g = (user && user.grade) ? user.grade : { base_salary: 0, has_plan: false, plan_margin: null };
+    const sales = {
+      "new": parseNumInput($("#calc-sales-new")),
+      expansion: parseNumInput($("#calc-sales-expansion")),
+      upgrade: parseNumInput($("#calc-sales-upgrade")),
+      renew: parseNumInput($("#calc-sales-renew")),
+    };
+    const sbis = parseNumInput($("#calc-sales-sbis"));
+    const worked = parseInt($("#calc-worked").value) || 0;
+    const working = parseInt($("#calc-working").value) || 1;
+    const tax = parseFloat($("#calc-tax").value) || 13;
+    const accrued = round2((g.base_salary || 0) * worked / working);
+    const totalDs = round2(sales["new"] + sales.expansion + sales.upgrade + sales.renew);
+    const { rates, perf } = abtRatesFor(g, totalDs);
+    const bNew = round2(sales["new"] * rates["new"] / 100);
+    const bExp = round2(sales.expansion * rates.expansion / 100);
+    const bUpg = round2(sales.upgrade * rates.upgrade / 100);
+    const bRen = round2(sales.renew * rates.renew / 100);
+    const bSbis = round2(sbis * 10 / 100);
+    const bonusTotal = round2(bNew + bExp + bUpg + bRen + bSbis);
+    const gross = round2(accrued + bonusTotal);
+    const taxAmt = round2(gross * tax / 100);
+    const net = round2(gross - taxAmt);
+    const overlay = document.createElement("div");
+    overlay.className = "modal-bg visible";
+    const planHtml = (g.has_plan && g.plan_margin) ? `
+        <div class="formula-section">
+          <div class="formula-section-title">0. Норма реализации и колонка ставок</div>
+          <div class="formula-line"><span class="ftxt">Норма (план)</span><span class="fsep">=</span><span class="fval">${formatMoney(g.plan_margin)}</span><span class="fsep">·</span><span class="ftxt">Реализация ДС</span><span class="fsep">=</span><span class="fval">${formatMoney(totalDs)}</span></div>
+          <div class="formula-line"><span class="ftxt">Выполнение</span><span class="fsep">=</span><span class="fval">${perf}%</span><span class="fsep">→</span><span class="fresult">Ставки: ${rates["new"]}/${rates.expansion}/${rates.upgrade}/${rates.renew}%</span></div>
+          <div class="formula-sub">Колонки: 0–89,99% → 8/7/5/1,2 · 90–99,99% → 10/9/7/1,3 · 100–109,99% → 13/11/9/1,5 · при перевыполнении (≥110%) меняется только ставка «новых продаж»: 15/17/20%.</div>
+        </div>` : `
+        <div class="formula-section">
+          <div class="formula-section-title">0. План не задан</div>
+          <div class="formula-sub">Применяется базовая колонка ставок: 8/7/5/1,2% (0–89,99% выполнения).</div>
+        </div>`;
+    overlay.innerHTML = `
+      <div class="modal modal-formula">
+        <div class="modal-title-row"><div class="modal-title">Формула расчёта — Отдел АБТ</div><button class="modal-close" type="button" onclick="this.closest('.modal-bg').remove()">✕</button></div>
+        ${planHtml}
+        <div class="formula-section">
+          <div class="formula-section-title">1. Начисление по окладу</div>
+          <div class="formula-line"><span class="ftxt">Оклад</span><span class="fsep">×</span><span class="fval">${worked}</span><span class="fsep">÷</span><span class="fval">${working}</span><span class="fsep">=</span><span class="fresult">${formatMoney(accrued)}</span></div>
+        </div>
+        <div class="formula-section">
+          <div class="formula-section-title">2. Премии по типам продаж</div>
+          <div class="formula-line"><span class="ftxt">Новые продажи</span><span class="fsep">×</span><span class="fval">${rates["new"]}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(bNew)}</span></div>
+          <div class="formula-line"><span class="ftxt">Расширение</span><span class="fsep">×</span><span class="fval">${rates.expansion}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(bExp)}</span></div>
+          <div class="formula-line"><span class="ftxt">Апгрейд</span><span class="fsep">×</span><span class="fval">${rates.upgrade}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(bUpg)}</span></div>
+          <div class="formula-line"><span class="ftxt">Продление без изменений</span><span class="fsep">×</span><span class="fval">${rates.renew}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(bRen)}</span></div>
+          <div class="formula-line"><span class="ftxt">Товары СБИС</span><span class="fsep">×</span><span class="fval">10%</span><span class="fsep">=</span><span class="fresult">${formatMoney(bSbis)}</span></div>
+        </div>
+        <div class="formula-section">
+          <div class="formula-section-title">3. Начислено всего</div>
+          <div class="formula-line"><span class="ftxt">Оклад</span><span class="fsep">+</span><span class="ftxt">Премии</span><span class="fsep">=</span><span class="fresult">${formatMoney(gross)}</span></div>
+          <div class="formula-sub">KPI2 (сохранность ≥ ${g.kpi2_min_retention_pct || 83}%) — фиксированные ${formatMoney(g.kpi2_fixed_amount || 5000)} — добавляется к gross перед НДФЛ.</div>
+        </div>
+        <div class="formula-section">
+          <div class="formula-section-title">4. НДФЛ</div>
           <div class="formula-line"><span class="ftxt">${tax}%</span><span class="fsep">от</span><span class="fval">${formatMoney(gross)}</span><span class="fsep">=</span><span class="fresult fresult-mute">-${formatMoney(taxAmt)}</span></div>
         </div>
         <div class="formula-section formula-total">
@@ -1705,7 +1900,7 @@ const App = (() => {
     loadCosts, showCostFormulas,
     openForgotPassword, closeForgotPassword, sendResetCode, verifyResetCode, resetPassword, forgotBackToStep1,
     saveCostPrice,
-    loadGradesAdmin, openGradeEditor, closeGradeEditor, toggleGradePlan, addTierRow, saveGradeFromEditor, archiveGrade, restoreGrade,
+    loadGradesAdmin, openGradeEditor, closeGradeEditor, toggleGradePlan, addTierRow, saveGradeFromEditor, archiveGrade, restoreGrade, onGradeSchemeChange,
     loadUsersAdmin, userChangeGrade, userChangePosition, userDeactivate, userRestore, userResetPassword,
     toggleKpi2, updateKpi2Hint, ensureKpi2Visibility, attachKpi2Listeners,
     loadKpList, createKp, openKp, deleteKp, renameKp,

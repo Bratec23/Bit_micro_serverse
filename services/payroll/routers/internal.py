@@ -28,6 +28,8 @@ class RecordBrief(BaseModel):
     period: str
     service_margin: float
     goods_margin: float
+    scheme: str = "margin"
+    sales_total: float = 0
     bonus_total: float
     bonus_total_with_kpi2: float
     gross_pay: float
@@ -54,6 +56,10 @@ def _record_brief(rec: PayrollRecord) -> RecordBrief:
         period=rec.period,
         service_margin=float(rec.service_margin),
         goods_margin=float(rec.goods_margin),
+        scheme=rec.scheme or "margin",
+        sales_total=round(
+            float(rec.sales_new) + float(rec.sales_expansion) + float(rec.sales_upgrade)
+            + float(rec.sales_renew) + float(rec.sbis_goods), 2),
         bonus_total=float(rec.bonus_total),
         bonus_total_with_kpi2=round(float(rec.bonus_total) + float(rec.kpi2_bonus_amount), 2),
         gross_pay=float(rec.gross_pay),

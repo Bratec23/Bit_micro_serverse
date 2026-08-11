@@ -49,6 +49,13 @@ class Grade(Base):
     kpi2_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     kpi2_bonus_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=5.0)
     kpi2_min_retention_pct: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=80.0)
+    # схема мотивации: "margin" (маржа АРТ) | "abt" (реализация СБИС)
+    scheme: Mapped[str] = mapped_column(String(20), nullable=False, default="margin")
+    # отдел, которому принадлежит грейд (None = общий, legacy)
+    department_id: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    # KPI2: "percent" (% от прихода) | "fixed" (фиксированная сумма)
+    kpi2_bonus_type: Mapped[str] = mapped_column(String(10), nullable=False, default="percent")
+    kpi2_fixed_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

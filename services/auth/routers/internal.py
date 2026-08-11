@@ -34,6 +34,9 @@ class GradeOut(BaseModel):
     kpi2_enabled: bool = False
     kpi2_bonus_percent: float = 5.0
     kpi2_min_retention_pct: float = 80.0
+    scheme: str = "margin"
+    kpi2_bonus_type: str = "percent"
+    kpi2_fixed_amount: float = 0.0
     tiers: List[TierOut] = []
 
 
@@ -78,6 +81,9 @@ def _grade_out(grade: Grade, db: Session) -> GradeOut:
         kpi2_enabled=bool(grade.kpi2_enabled),
         kpi2_bonus_percent=float(grade.kpi2_bonus_percent),
         kpi2_min_retention_pct=float(grade.kpi2_min_retention_pct),
+        scheme=grade.scheme or "margin",
+        kpi2_bonus_type=grade.kpi2_bonus_type or "percent",
+        kpi2_fixed_amount=float(grade.kpi2_fixed_amount or 0),
         tiers=[TierOut(min_pct=float(t.min_pct), bonus_percent=float(t.bonus_percent)) for t in tiers],
     )
 

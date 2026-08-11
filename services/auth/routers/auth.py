@@ -109,6 +109,10 @@ class GradeBrief(BaseModel):
     kpi2_enabled: bool = False
     kpi2_bonus_percent: float = 5.0
     kpi2_min_retention_pct: float = 80.0
+    scheme: str = "margin"
+    department_id: Optional[int] = None
+    kpi2_bonus_type: str = "percent"
+    kpi2_fixed_amount: float = 0.0
 
 
 class UserOut(BaseModel):
@@ -184,6 +188,10 @@ def _user_out(user: User) -> dict:
             "kpi2_enabled": bool(grade_obj.kpi2_enabled),
             "kpi2_bonus_percent": float(grade_obj.kpi2_bonus_percent),
             "kpi2_min_retention_pct": float(grade_obj.kpi2_min_retention_pct),
+            "scheme": grade_obj.scheme or "margin",
+            "department_id": grade_obj.department_id,
+            "kpi2_bonus_type": grade_obj.kpi2_bonus_type or "percent",
+            "kpi2_fixed_amount": float(grade_obj.kpi2_fixed_amount or 0),
         }
     return {
         "id": user.id,
@@ -261,6 +269,15 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
                 detail="Неверный пароль подтверждения руководителя",
             )
 
+    if payload.grade_id:
+        grade = db.get(Grade, payload.grade_id)
+        if not grade or not grade.is_active:
+            log_event(db, request, "register", payload.email, success=False, detail="grade not found")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд не найден")
+        if grade.department_id is not None and grade.department_id != dept.id:
+            log_event(db, request, "register", payload.email, success=False, detail="grade dept mismatch")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд не соответствует отделу")
+
     user = User(
         email=payload.email.lower(),
         full_name=payload.full_name.strip(),
@@ -312,6 +329,8 @@ def update_me(payload: UpdateMeRequest, db: Session = Depends(get_db), current: 
         grade = db.get(Grade, payload.grade_id)
         if not grade or not grade.is_active:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд не найден")
+        if grade.department_id is not None and grade.department_id != current.department_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд не соответствует отделу")
         current.grade_id = grade.id
     db.commit()
     db.refresh(current)

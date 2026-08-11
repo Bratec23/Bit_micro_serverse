@@ -18,6 +18,8 @@ class PayrollRecord(Base):
     working_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     service_margin: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
     goods_margin: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    # маржа за месяц — отдельный показатель для выполнения плана и ступеней (АРТ)
+    month_margin: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
     bonus_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
     service_factor: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0.5)
     base_salary: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
@@ -42,6 +44,20 @@ class PayrollRecord(Base):
     kpi2_paid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     grade_kpi2_bonus_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=5.0)
     grade_kpi2_min_retention_pct: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=80.0)
+    # схема мотивации: "margin" (маржа АРТ) | "abt" (реализация СБИС)
+    scheme: Mapped[str] = mapped_column(String(20), nullable=False, default="margin")
+    # АБТ: реализация по типам продаж
+    sales_new: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    sales_expansion: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    sales_upgrade: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    sales_renew: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    sbis_goods: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    # АБТ: премии по типам продаж
+    bonus_new: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    bonus_expansion: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    bonus_upgrade: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    bonus_renew: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    bonus_sbis_goods: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

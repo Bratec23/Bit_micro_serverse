@@ -43,6 +43,10 @@ class GradeOut(BaseModel):
     kpi2_enabled: bool = False
     kpi2_bonus_percent: float = 5.0
     kpi2_min_retention_pct: float = 80.0
+    scheme: str = "margin"
+    department_id: Optional[int] = None
+    kpi2_bonus_type: str = "percent"
+    kpi2_fixed_amount: float = 0.0
     is_active: bool
     tiers: List[TierOut] = []
 
@@ -63,8 +67,13 @@ def list_positions(department_id: Optional[int] = Query(default=None), db: Sessi
 
 
 @router.get("/grades", response_model=List[GradeOut])
-def list_grades(db: Session = Depends(get_db)):
-    rows = db.scalars(select(Grade).where(Grade.is_active.is_(True)).order_by(Grade.sort_order, Grade.name)).all()
+def list_grades(department_id: Optional[int] = Query(default=None), db: Session = Depends(get_db)):
+    stmt = select(Grade).where(Grade.is_active.is_(True))
+    if department_id is not None:
+        # мотивация отдела: строго грейды этого отдела
+        stmt = stmt.where(Grade.department_id == department_id)
+    stmt = stmt.order_by(Grade.sort_order, Grade.name)
+    rows = db.scalars(stmt).all()
     result = []
     for g in rows:
         tiers = db.scalars(select(GradeTier).where(GradeTier.grade_id == g.id).order_by(GradeTier.min_pct)).all()
@@ -79,6 +88,10 @@ def list_grades(db: Session = Depends(get_db)):
             kpi2_enabled=bool(g.kpi2_enabled),
             kpi2_bonus_percent=float(g.kpi2_bonus_percent),
             kpi2_min_retention_pct=float(g.kpi2_min_retention_pct),
+            scheme=g.scheme or "margin",
+            department_id=g.department_id,
+            kpi2_bonus_type=g.kpi2_bonus_type or "percent",
+            kpi2_fixed_amount=float(g.kpi2_fixed_amount or 0),
             is_active=bool(g.is_active),
             tiers=[TierOut(min_pct=float(t.min_pct), bonus_percent=float(t.bonus_percent)) for t in tiers],
         ))
