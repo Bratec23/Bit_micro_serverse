@@ -470,6 +470,7 @@ table.data-table tbody tr:last-child td { border-bottom: none; }
 .grade-row-archived { opacity: 0.55; }
 
 .kpi2-toggle { margin-bottom: var(--space-2); }
+.kp-shared-badge { font-size: var(--text-xs); color: var(--color-accent, #e5006e); font-weight: 600; }
 .kpi2-hint { font-size: var(--text-sm); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); margin-top: var(--space-2); background: var(--color-surface-offset); color: var(--color-text-muted); }
 .kpi2-hint-ok { background: var(--color-success-bg); color: var(--color-success); font-weight: 600; }
 .kpi2-hint-blocked { background: var(--color-error-bg); color: var(--color-error); font-weight: 600; }

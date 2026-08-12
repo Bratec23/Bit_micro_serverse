@@ -34,9 +34,16 @@ class KPIn(BaseModel):
     payload: dict = Field(default_factory=dict)
 
 
+class KPShareIn(BaseModel):
+    owner_name: str = Field(default="", max_length=255)
+
+
 class KPBriefOut(BaseModel):
     id: int
     title: str
+    is_shared: bool = False
+    owner_name: str = ""
+    is_own: bool = True
     created_at: str
     updated_at: str
 
@@ -45,10 +52,13 @@ class KPOut(KPBriefOut):
     payload: dict
 
 
-def _brief(doc: KPDocument) -> KPBriefOut:
+def _brief(doc: KPDocument, user_id: Optional[int] = None) -> KPBriefOut:
     return KPBriefOut(
         id=doc.id,
         title=doc.title,
+        is_shared=bool(doc.is_shared),
+        owner_name=doc.owner_name or "",
+        is_own=(user_id is None or doc.user_id == user_id),
         created_at=doc.created_at.strftime("%d.%m.%Y %H:%M") if doc.created_at else "",
         updated_at=doc.updated_at.strftime("%d.%m.%Y %H:%M") if doc.updated_at else "",
     )
@@ -66,7 +76,16 @@ def list_documents(db: Session = Depends(get_db), user_id: int = Depends(get_cur
     rows = db.scalars(
         select(KPDocument).where(KPDocument.user_id == user_id).order_by(KPDocument.updated_at.desc())
     ).all()
-    return [_brief(r) for r in rows]
+    return [_brief(r, user_id) for r in rows]
+
+
+@router.get("/documents/shared", response_model=List[KPBriefOut])
+def list_shared_documents(db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    """Общее пространство: КП, которыми поделились все пользователи."""
+    rows = db.scalars(
+        select(KPDocument).where(KPDocument.is_shared.is_(True)).order_by(KPDocument.updated_at.desc())
+    ).all()
+    return [_brief(r, user_id) for r in rows]
 
 
 @router.post("/documents", response_model=KPOut, status_code=status.HTTP_201_CREATED)
@@ -78,13 +97,51 @@ def create_document(payload: KPIn, db: Session = Depends(get_db), user_id: int =
     db.add(doc)
     db.commit()
     db.refresh(doc)
-    return KPOut(**_brief(doc).model_dump(), payload=payload.payload)
+    return KPOut(**_brief(doc, user_id).model_dump(), payload=payload.payload)
+
+
+@router.post("/documents/{doc_id}/copy", response_model=KPOut, status_code=status.HTTP_201_CREATED)
+def copy_document(doc_id: int, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    """Копия КП со всем наполнением (тексты, фото). Доступна для своих и общих КП."""
+    src = db.get(KPDocument, doc_id)
+    if not src or (src.user_id != user_id and not src.is_shared):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Документ не найден")
+    doc = KPDocument(
+        user_id=user_id,
+        title=(src.title or "Коммерческое предложение") + " (копия)",
+        payload=src.payload or "{}",
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    return KPOut(**_brief(doc, user_id).model_dump(), payload=json.loads(doc.payload))
+
+
+@router.post("/documents/{doc_id}/share", response_model=KPBriefOut)
+def share_document(doc_id: int, payload: KPShareIn, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    doc = _get_own_doc(doc_id, user_id, db)
+    doc.is_shared = True
+    doc.owner_name = payload.owner_name.strip() or doc.owner_name
+    db.commit()
+    db.refresh(doc)
+    return _brief(doc, user_id)
+
+
+@router.post("/documents/{doc_id}/unshare", response_model=KPBriefOut)
+def unshare_document(doc_id: int, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    doc = _get_own_doc(doc_id, user_id, db)
+    doc.is_shared = False
+    db.commit()
+    db.refresh(doc)
+    return _brief(doc, user_id)
 
 
 @router.get("/documents/{doc_id}", response_model=KPOut)
 def get_document(doc_id: int, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
-    doc = _get_own_doc(doc_id, user_id, db)
-    return KPOut(**_brief(doc).model_dump(), payload=json.loads(doc.payload or "{}"))
+    doc = db.get(KPDocument, doc_id)
+    if not doc or (doc.user_id != user_id and not doc.is_shared):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Документ не найден")
+    return KPOut(**_brief(doc, user_id).model_dump(), payload=json.loads(doc.payload or "{}"))
 
 
 @router.put("/documents/{doc_id}", response_model=KPOut)
@@ -97,7 +154,7 @@ def update_document(doc_id: int, payload: KPIn, db: Session = Depends(get_db), u
     doc.payload = raw
     db.commit()
     db.refresh(doc)
-    return KPOut(**_brief(doc).model_dump(), payload=payload.payload)
+    return KPOut(**_brief(doc, user_id).model_dump(), payload=payload.payload)
 
 
 @router.delete("/documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -88,6 +88,9 @@ def generate_payroll_xlsx(record, profile: dict) -> bytes:
             ("НДФЛ", float(record.tax_rate), "%"),
         ]
 
+    if _money(record.kpi3_as_revenue) > 0:
+        params.append(("KPI3 — приход с новых АС (без НДС)", _money(record.kpi3_as_revenue), "₽"))
+        params.append(("KPI3 — процент премии", 5.0, "%"))
     if _money(record.kpi2_revenue) > 0:
         params.append(("KPI2 — приход ден. средств", _money(record.kpi2_revenue), "₽"))
         params.append(("KPI2 — сохранность клиентов", float(record.kpi2_retention_pct), "%"))
@@ -122,7 +125,7 @@ def generate_payroll_xlsx(record, profile: dict) -> bytes:
     ws.row_dimensions[row].height = 22
     row += 1
 
-    total_bonus_with_kpi2 = round(_money(record.bonus_total) + _money(record.kpi2_bonus_amount), 2)
+    total_bonus_with_kpi2 = round(_money(record.bonus_total) + _money(record.kpi2_bonus_amount) + _money(record.kpi3_bonus_amount), 2)
 
     if is_abt:
         results = [
@@ -140,6 +143,8 @@ def generate_payroll_xlsx(record, profile: dict) -> bytes:
             ("Премия за товар", _money(record.goods_bonus)),
         ]
 
+    if _money(record.kpi3_bonus_amount) > 0:
+        results.append(("Премия за новые АС (KPI3, 5%)", _money(record.kpi3_bonus_amount)))
     if _money(record.kpi2_bonus_amount) > 0:
         results.append(("Премия за сохранность (KPI2)", _money(record.kpi2_bonus_amount)))
     elif record.kpi2_paid is False and (_money(record.kpi2_revenue) > 0 or (is_abt and float(record.kpi2_retention_pct or 0) > 0)):

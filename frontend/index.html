@@ -278,9 +278,9 @@
               <button type="button" class="btn-info" onclick="App.showFormula()" title="Формула расчёта">Формула расчёта</button>
             </div>
             <div class="form-row">
-              <div class="form-group" style="grid-column:1/-1"><label class="form-label" for="calc-month-margin">Маржа за месяц (влияет на выполнение плана и ступень)</label><input class="form-input number-input" id="calc-month-margin" type="number" min="0" step="0.01" value="0"></div>
-              <div class="form-group"><label class="form-label" for="calc-svc-margin">Маржа с услуг</label><input class="form-input number-input" id="calc-svc-margin" type="number" min="0" step="0.01" value="0" required></div>
-              <div class="form-group"><label class="form-label" for="calc-goods-margin">Маржа с товара</label><input class="form-input number-input" id="calc-goods-margin" type="number" min="0" step="0.01" value="0" required></div>
+              <div class="form-group" style="grid-column:1/-1"><label class="form-label" for="calc-month-margin">Маржа за месяц, ₽ без НДС (влияет на выполнение плана и ступень)</label><input class="form-input number-input" id="calc-month-margin" type="number" min="0" step="0.01" value="0"></div>
+              <div class="form-group"><label class="form-label" for="calc-svc-margin">Маржа с услуг, ₽ без НДС</label><input class="form-input number-input" id="calc-svc-margin" type="number" min="0" step="0.01" value="0" required></div>
+              <div class="form-group"><label class="form-label" for="calc-goods-margin">Маржа с товара, ₽ без НДС</label><input class="form-input number-input" id="calc-goods-margin" type="number" min="0" step="0.01" value="0" required></div>
             </div>
             </div>
             <div id="abt-fields" style="display:none">
@@ -310,7 +310,7 @@
               <div id="kpi2-fields" style="display:none; margin-top: var(--space-3); padding: var(--space-4); background: var(--color-surface-2); border-radius: var(--radius-md); border: 1px solid var(--color-divider);">
                 <div class="form-row">
                   <div class="form-group" id="kpi2-revenue-group">
-                    <label class="form-label" for="kpi2-revenue">Приход денежных средств, ₽</label>
+                    <label class="form-label" for="kpi2-revenue">Приход денежных средств, ₽ (без НДС)</label>
                     <input class="form-input number-input" id="kpi2-revenue" type="number" min="0" step="0.01" value="0">
                   </div>
                   <div class="form-group">
@@ -319,6 +319,22 @@
                   </div>
                 </div>
                 <div id="kpi2-hint" class="kpi2-hint"></div>
+              </div>
+            </div>
+
+            <div id="kpi3-section" style="display:none; margin-top: var(--space-5);">
+              <button type="button" class="btn-info kpi2-toggle" id="kpi3-toggle" onclick="App.toggleKpi3()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                KPI 3 — продажа новых АС (премия 5%)
+              </button>
+              <div id="kpi3-fields" style="display:none; margin-top: var(--space-3); padding: var(--space-4); background: var(--color-surface-2); border-radius: var(--radius-md); border: 1px solid var(--color-divider);">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label" for="kpi3-as-revenue">Приход с новых АС, ₽ (без НДС)</label>
+                    <input class="form-input number-input" id="kpi3-as-revenue" type="number" min="0" step="0.01" value="0">
+                  </div>
+                </div>
+                <div id="kpi3-hint" class="kpi2-hint"></div>
               </div>
             </div>
           </form>
@@ -386,6 +402,13 @@
             <button class="btn-ghost btn-sm" onclick="App.loadKpList()">Обновить</button>
           </div>
           <div id="kp-list" class="table-wrap">Загрузка…</div>
+        </div>
+        <div class="section-header" style="margin-top: var(--space-6);">
+          <div class="section-title">Общие КП</div>
+          <div class="section-desc">Документы, которыми поделились коллеги — доступны для просмотра и копирования</div>
+        </div>
+        <div class="card">
+          <div id="kp-shared" class="table-wrap">Загрузка…</div>
         </div>
       </div>
     </div>
@@ -726,6 +749,13 @@
             <button class="btn-ghost btn-sm" onclick="App.loadKpList()">Обновить</button>
           </div>
           <div id="kp-list-head" class="table-wrap">Загрузка…</div>
+        </div>
+        <div class="section-header" style="margin-top: var(--space-6);">
+          <div class="section-title">Общие КП</div>
+          <div class="section-desc">Документы, которыми поделились коллеги — доступны для просмотра и копирования</div>
+        </div>
+        <div class="card">
+          <div id="kp-shared-head" class="table-wrap">Загрузка…</div>
         </div>
       </div>
     </div>

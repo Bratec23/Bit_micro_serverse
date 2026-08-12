@@ -44,6 +44,9 @@ class PayrollRecord(Base):
     kpi2_paid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     grade_kpi2_bonus_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=5.0)
     grade_kpi2_min_retention_pct: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=80.0)
+    # KPI3 (АРТ): приход с новых АС — премия 5% от суммы, суммы вносятся без НДС
+    kpi3_as_revenue: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    kpi3_bonus_amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
     # схема мотивации: "margin" (маржа АРТ) | "abt" (реализация СБИС)
     scheme: Mapped[str] = mapped_column(String(20), nullable=False, default="margin")
     # АБТ: реализация по типам продаж

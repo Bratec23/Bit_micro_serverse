@@ -61,7 +61,7 @@ def _record_brief(rec: PayrollRecord) -> RecordBrief:
             float(rec.sales_new) + float(rec.sales_expansion) + float(rec.sales_upgrade)
             + float(rec.sales_renew) + float(rec.sbis_goods), 2),
         bonus_total=float(rec.bonus_total),
-        bonus_total_with_kpi2=round(float(rec.bonus_total) + float(rec.kpi2_bonus_amount), 2),
+        bonus_total_with_kpi2=round(float(rec.bonus_total) + float(rec.kpi2_bonus_amount) + float(rec.kpi3_bonus_amount), 2),
         gross_pay=float(rec.gross_pay),
         tax_amount=float(rec.tax_amount),
         net_pay=float(rec.net_pay),

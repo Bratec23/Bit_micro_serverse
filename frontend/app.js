@@ -679,6 +679,27 @@ const App = (() => {
     // фиксированный KPI2 (АБТ): приход не нужен — только сохранность
     const revGroup = $("#kpi2-revenue-group");
     if (revGroup) revGroup.style.display = g.kpi2_bonus_type === "fixed" ? "none" : "block";
+    // KPI3 «Новые АС» — только для отдела АРТ (маржинальная схема)
+    const sec3 = $("#kpi3-section");
+    if (sec3) sec3.style.display = g.scheme === "abt" ? "none" : "block";
+  }
+
+  let kpi3Open = false;
+  function toggleKpi3() {
+    kpi3Open = !kpi3Open;
+    const fields = $("#kpi3-fields");
+    if (fields) fields.style.display = kpi3Open ? "block" : "none";
+    updateKpi3Hint();
+  }
+
+  function updateKpi3Hint() {
+    const hint = $("#kpi3-hint");
+    if (!hint) return;
+    const rev = parseNumInput($("#kpi3-as-revenue"));
+    if (rev <= 0) { hint.textContent = "Введите приход с новых АС без НДС — премия 5% рассчитается автоматически"; hint.className = "kpi2-hint"; return; }
+    const bonus = round2(rev * 5 / 100);
+    hint.textContent = `Премия KPI3: ${rev.toLocaleString("ru-RU")} × 5% = ${formatMoney(bonus)} (без вычета НДС)`;
+    hint.className = "kpi2-hint kpi2-hint-ok";
   }
 
   function attachKpi2Listeners() {
@@ -686,6 +707,8 @@ const App = (() => {
     const ret = $("#kpi2-retention");
     if (rev && !rev.dataset.kpi2attached) { rev.dataset.kpi2attached = "1"; rev.addEventListener("input", updateKpi2Hint); }
     if (ret && !ret.dataset.kpi2attached) { ret.dataset.kpi2attached = "1"; ret.addEventListener("input", updateKpi2Hint); }
+    const rev3 = $("#kpi3-as-revenue");
+    if (rev3 && !rev3.dataset.kpi3attached) { rev3.dataset.kpi3attached = "1"; rev3.addEventListener("input", updateKpi3Hint); }
   }
 
   async function calculate() {
@@ -700,6 +723,7 @@ const App = (() => {
       tax_rate: parseFloat($("#calc-tax").value) || 13,
       kpi2_revenue: parseNumInput($("#kpi2-revenue")),
       kpi2_retention_pct: parseFloat($("#kpi2-retention").value) || 0,
+      kpi3_as_revenue: abt ? 0 : parseNumInput($("#kpi3-as-revenue")),
       sales_new: abt ? parseNumInput($("#calc-sales-new")) : 0,
       sales_expansion: abt ? parseNumInput($("#calc-sales-expansion")) : 0,
       sales_upgrade: abt ? parseNumInput($("#calc-sales-upgrade")) : 0,
@@ -734,18 +758,27 @@ const App = (() => {
           <div class="kpi2-result-row"><span>Премия (${r.kpi2_bonus_percent}%):</span> <b>${formatMoney(r.kpi2_bonus_amount)}</b></div>
           <div class="kpi2-result-status ${r.kpi2_paid ? "kpi2-status-ok" : "kpi2-status-no"}">${r.kpi2_paid ? "Премия выплачивается" : "Премия не выплачивается — сохранность ниже " + r.kpi2_min_retention_pct + "%"}</div>
         </div>` : "");
+      const kpi3Card = (r.kpi3_as_revenue > 0 || r.kpi3_bonus_amount > 0) ? `
+        <div class="kpi2-result-card kpi2-paid">
+          <div class="kpi2-result-title">KPI 3 — продажа новых АС</div>
+          <div class="kpi2-result-row"><span>Приход с АС (без НДС):</span> <b>${formatMoney(r.kpi3_as_revenue)}</b></div>
+          <div class="kpi2-result-row"><span>Премия (${r.kpi3_bonus_percent || 5}%):</span> <b>${formatMoney(r.kpi3_bonus_amount)}</b></div>
+          <div class="kpi2-result-status kpi2-status-ok">Начислено без вычета НДС</div>
+        </div>` : "";
       resBox.innerHTML = `
         <div class="cr-title">Расчёт за ${escapeHtml(r.period)} — сохранён</div>
         <div class="cr-grid">
           <div class="cr-item"><div class="cr-label">Начислено (оклад)</div><div class="cr-value">${formatMoney(r.accrued_base)}</div></div>
           ${bonusRows}
           ${r.kpi2_bonus_amount > 0 ? `<div class="cr-item"><div class="cr-label">Премия за сохранность (KPI2)</div><div class="cr-value">${formatMoney(r.kpi2_bonus_amount)}</div></div>` : ""}
+          ${r.kpi3_bonus_amount > 0 ? `<div class="cr-item"><div class="cr-label">Премия за новые АС (KPI3)</div><div class="cr-value">${formatMoney(r.kpi3_bonus_amount)}</div></div>` : ""}
           <div class="cr-item"><div class="cr-label">Премия итого</div><div class="cr-value">${formatMoney(r.bonus_total_with_kpi2)}</div></div>
           <div class="cr-item"><div class="cr-label">Начислено всего</div><div class="cr-value">${formatMoney(r.gross_pay)}</div></div>
           <div class="cr-item"><div class="cr-label">НДФЛ (${r.tax_rate}%)</div><div class="cr-value">-${formatMoney(r.tax_amount)}</div></div>
           <div class="cr-item cr-net"><div class="cr-label">К выплате</div><div class="cr-value">${formatMoney(r.net_pay)}</div></div>
         </div>
         ${kpi2Card}
+        ${kpi3Card}
 <div class="cr-actions">
           <button class="btn-excel" onclick="App.exportRecord(${r.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Скачать Excel</button>
         </div>`;
@@ -954,7 +987,9 @@ const App = (() => {
     const svcBonus = round2(svc * g.service_factor * bonusPercent / 100);
     const goodsBonus = round2(goods * bonusPercent / 100);
     const bonusTotal = round2(svcBonus + goodsBonus);
-    const gross = round2(accrued + bonusTotal);
+    const kpi3Rev = parseNumInput($("#kpi3-as-revenue"));
+    const kpi3Bonus = round2(kpi3Rev * 5 / 100);
+    const gross = round2(accrued + bonusTotal + kpi3Bonus);
     const taxAmt = round2(gross * tax / 100);
     const net = round2(gross - taxAmt);
     const overlay = document.createElement("div");
@@ -986,12 +1021,17 @@ const App = (() => {
           <div class="formula-line"><span class="ftxt">Маржа товара</span><span class="fsep">×</span><span class="fval">${bonusPercent}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(goodsBonus)}</span></div>
           <div class="formula-sub">Маржа товара = сумма столбцов: <b>Торговое оборудование, 1С, Промышленное оборудование</b></div>
         </div>
+        ${kpi3Rev > 0 ? `
         <div class="formula-section">
-          <div class="formula-section-title">4. Начислено всего</div>
-          <div class="formula-line"><span class="ftxt">Оклад</span><span class="fsep">+</span><span class="ftxt">Премия услуг</span><span class="fsep">+</span><span class="ftxt">Премия товара</span><span class="fsep">=</span><span class="fresult">${formatMoney(gross)}</span></div>
+          <div class="formula-section-title">4. KPI 3 — новые АС <span class="formula-hint">5% от прихода, без вычета НДС</span></div>
+          <div class="formula-line"><span class="ftxt">Приход с АС</span><span class="fsep">×</span><span class="fval">5%</span><span class="fsep">=</span><span class="fresult">${formatMoney(kpi3Bonus)}</span></div>
+        </div>` : ""}
+        <div class="formula-section">
+          <div class="formula-section-title">${kpi3Rev > 0 ? "5" : "4"}. Начислено всего</div>
+          <div class="formula-line"><span class="ftxt">Оклад</span><span class="fsep">+</span><span class="ftxt">Премия услуг</span><span class="fsep">+</span><span class="ftxt">Премия товара</span>${kpi3Rev > 0 ? `<span class="fsep">+</span><span class="ftxt">KPI3</span>` : ""}<span class="fsep">=</span><span class="fresult">${formatMoney(gross)}</span></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">5. НДФЛ</div>
+          <div class="formula-section-title">${kpi3Rev > 0 ? "6" : "5"}. НДФЛ</div>
           <div class="formula-line"><span class="ftxt">${tax}%</span><span class="fsep">от</span><span class="fval">${formatMoney(gross)}</span><span class="fsep">=</span><span class="fresult fresult-mute">-${formatMoney(taxAmt)}</span></div>
         </div>
         <div class="formula-section formula-total">
@@ -1812,22 +1852,70 @@ const App = (() => {
     wrap.innerHTML = "Загрузка…";
     try {
       const docs = await api("/api/kp/documents");
-      if (!docs.length) { wrap.innerHTML = '<div class="empty">Пока нет ни одного КП. Нажмите «+ Новое КП».</div>'; return; }
-      wrap.innerHTML = `
+      if (!docs.length) { wrap.innerHTML = '<div class="empty">Пока нет ни одного КП. Нажмите «+ Новое КП».</div>'; }
+      else wrap.innerHTML = `
         <table class="data-table">
           <thead><tr><th>Название</th><th>Создано</th><th>Изменено</th><th></th></tr></thead>
           <tbody>${docs.map(d => `<tr>
-            <td data-label="Название">${escapeHtml(d.title)}</td>
+            <td data-label="Название">${escapeHtml(d.title)}${d.is_shared ? ' <span class="kp-shared-badge" title="Видно всем в общем списке">🌐 общее</span>' : ""}</td>
             <td data-label="Создано" class="tnum">${escapeHtml(d.created_at)}</td>
             <td data-label="Изменено" class="tnum">${escapeHtml(d.updated_at)}</td>
             <td data-label="" class="row-action">
               <button class="btn-ghost btn-sm" onclick="App.openKp(${d.id})" title="Открыть">Открыть</button>
+              <button class="btn-ghost btn-sm" onclick="App.copyKp(${d.id})" title="Создать копию со всем наполнением">⧉</button>
+              <button class="btn-ghost btn-sm" onclick="App.toggleShareKp(${d.id}, ${d.is_shared ? "true" : "false"})" title="${d.is_shared ? "Убрать из общего списка" : "Поделиться со всеми"}">${d.is_shared ? "🔒" : "🌐"}</button>
               <button class="btn-ghost btn-sm" onclick="App.renameKp(${d.id}, '${escapeHtml(d.title).replace(/'/g, "\\'")}')" title="Переименовать">✎</button>
               <button class="btn-ghost btn-sm" onclick="App.deleteKp(${d.id}, '${escapeHtml(d.title).replace(/'/g, "\\'")}')" title="Удалить">🗑</button>
             </td>
           </tr>`).join("")}</tbody>
         </table>`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+    loadKpShared();
+  }
+
+  async function loadKpShared() {
+    const isHead = (getUser() || {}).role === "head";
+    const wrap = $(isHead ? "#kp-shared-head" : "#kp-shared") || $("#kp-shared") || $("#kp-shared-head");
+    if (!wrap) return;
+    try {
+      const docs = await api("/api/kp/documents/shared");
+      if (!docs.length) { wrap.innerHTML = '<div class="empty">Пока никто не поделился КП. Нажмите 🌐 у своего документа, чтобы показать его всем.</div>'; return; }
+      wrap.innerHTML = `
+        <table class="data-table">
+          <thead><tr><th>Название</th><th>Автор</th><th>Изменено</th><th></th></tr></thead>
+          <tbody>${docs.map(d => `<tr>
+            <td data-label="Название">${escapeHtml(d.title)}</td>
+            <td data-label="Автор">${d.is_own ? "Вы" : escapeHtml(d.owner_name || "—")}</td>
+            <td data-label="Изменено" class="tnum">${escapeHtml(d.updated_at)}</td>
+            <td data-label="" class="row-action">
+              <button class="btn-ghost btn-sm" onclick="App.openKp(${d.id})" title="Открыть (просмотр)">Открыть</button>
+              <button class="btn-ghost btn-sm" onclick="App.copyKp(${d.id})" title="Создать свою копию">⧉ Копия</button>
+            </td>
+          </tr>`).join("")}</tbody>
+        </table>`;
+    } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
+
+  async function copyKp(id) {
+    try {
+      const doc = await api(`/api/kp/documents/${id}/copy`, { method: "POST" });
+      toast("Копия создана", "success");
+      location.href = "/kp.html?id=" + doc.id;
+    } catch (e) { toast("Не удалось скопировать: " + e.message, "error"); }
+  }
+
+  async function toggleShareKp(id, isShared) {
+    try {
+      const user = getUser() || {};
+      if (isShared) {
+        await api(`/api/kp/documents/${id}/unshare`, { method: "POST" });
+        toast("КП убрано из общего списка", "success");
+      } else {
+        await api(`/api/kp/documents/${id}/share`, { method: "POST", body: { owner_name: user.full_name || "" } });
+        toast("КП теперь видно всем пользователям", "success");
+      }
+      loadKpList();
+    } catch (e) { toast("Не удалось изменить доступ: " + e.message, "error"); }
   }
 
   async function createKp() {
@@ -1903,7 +1991,8 @@ const App = (() => {
     loadGradesAdmin, openGradeEditor, closeGradeEditor, toggleGradePlan, addTierRow, saveGradeFromEditor, archiveGrade, restoreGrade, onGradeSchemeChange,
     loadUsersAdmin, userChangeGrade, userChangePosition, userDeactivate, userRestore, userResetPassword,
     toggleKpi2, updateKpi2Hint, ensureKpi2Visibility, attachKpi2Listeners,
-    loadKpList, createKp, openKp, deleteKp, renameKp,
+    toggleKpi3, updateKpi3Hint,
+    loadKpList, createKp, openKp, deleteKp, renameKp, copyKp, toggleShareKp, loadKpShared,
   };
 })();
 

@@ -32,6 +32,8 @@ def _migrate() -> None:
             ("bonus_upgrade", "NUMERIC(14, 2) NOT NULL DEFAULT 0"),
             ("bonus_renew", "NUMERIC(14, 2) NOT NULL DEFAULT 0"),
             ("bonus_sbis_goods", "NUMERIC(14, 2) NOT NULL DEFAULT 0"),
+            ("kpi3_as_revenue", "NUMERIC(14, 2) NOT NULL DEFAULT 0"),
+            ("kpi3_bonus_amount", "NUMERIC(14, 2) NOT NULL DEFAULT 0"),
         ],
     }
     insp = inspect(engine)

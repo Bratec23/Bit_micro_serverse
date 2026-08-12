@@ -9,7 +9,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth_client import get_user_profile
-from app.config import settings
 from app.database import get_db
 from app.export import generate_payroll_xlsx
 from app.models import CostPriceRecord, PayrollRecord
@@ -60,6 +59,7 @@ class PayrollCalcIn(BaseModel):
     tax_rate: float = Field(ge=0, le=100, default=13.0)
     kpi2_revenue: float = Field(ge=0, default=0)
     kpi2_retention_pct: float = Field(ge=0, le=100, default=0)
+    kpi3_as_revenue: float = Field(ge=0, default=0, description="KPI3 (АРТ): приход с новых АС, без НДС")
     # АБТ: реализация по типам продаж
     sales_new: float = Field(ge=0, default=0)
     sales_expansion: float = Field(ge=0, default=0)
@@ -102,6 +102,9 @@ class PayrollOut(BaseModel):
     kpi2_paid: bool = False
     kpi2_bonus_percent: float = 5.0
     kpi2_min_retention_pct: float = 80.0
+    kpi3_as_revenue: float = 0
+    kpi3_bonus_amount: float = 0
+    kpi3_bonus_percent: float = 5.0
     scheme: str = "margin"
     sales_new: float = 0
     sales_expansion: float = 0
@@ -127,8 +130,15 @@ def _ensure_can_calculate(profile: dict) -> None:
         )
 
 
-def _margin_for_plan(service_margin: float, goods_margin: float) -> float:
-    return round((float(service_margin) + float(goods_margin)) * (1 - settings.VAT_RATE_PERCENT / 100), 2)
+# KPI3 (АРТ): премия за приход с новых АС — фиксированные 5%, суммы вносятся уже без НДС
+KPI3_AS_RATE = 5.0
+
+
+def _calc_kpi3(kpi3_as_revenue: float) -> float:
+    """KPI3 «Новые АС»: 5% от прихода. НДС не вычитается — менеджер вносит сумму без НДС."""
+    if kpi3_as_revenue <= 0:
+        return 0.0
+    return round(float(kpi3_as_revenue) * KPI3_AS_RATE / 100, 2)
 
 
 def _resolve_bonus_percent(grade: dict, margin_for_plan: float) -> float:
@@ -219,12 +229,12 @@ def _calc_abt(grade: dict, p: PayrollCalcIn, kpi2_bonus: float) -> dict:
     }
 
 
-def _calc(base_salary: float, bonus_percent: float, service_factor: float, p: PayrollCalcIn, kpi2_bonus: float = 0) -> dict:
+def _calc(base_salary: float, bonus_percent: float, service_factor: float, p: PayrollCalcIn, kpi2_bonus: float = 0, kpi3_bonus: float = 0) -> dict:
     accrued_base = round(base_salary * p.worked_days / p.working_days, 2)
     services_bonus = round(p.service_margin * service_factor * bonus_percent / 100, 2)
     goods_bonus = round(p.goods_margin * bonus_percent / 100, 2)
     bonus_total = round(services_bonus + goods_bonus, 2)
-    gross_pay = round(accrued_base + bonus_total + kpi2_bonus, 2)
+    gross_pay = round(accrued_base + bonus_total + kpi2_bonus + kpi3_bonus, 2)
     tax_amount = round(gross_pay * p.tax_rate / 100, 2)
     net_pay = round(gross_pay - tax_amount, 2)
     return {
@@ -256,7 +266,7 @@ def _payroll_out(rec: PayrollRecord) -> dict:
         "services_bonus": float(rec.services_bonus),
         "goods_bonus": float(rec.goods_bonus),
         "bonus_total": float(rec.bonus_total),
-        "bonus_total_with_kpi2": round(float(rec.bonus_total) + float(rec.kpi2_bonus_amount), 2),
+        "bonus_total_with_kpi2": round(float(rec.bonus_total) + float(rec.kpi2_bonus_amount) + float(rec.kpi3_bonus_amount), 2),
         "tax_rate": float(rec.tax_rate),
         "gross_pay": float(rec.gross_pay),
         "tax_amount": float(rec.tax_amount),
@@ -275,6 +285,9 @@ def _payroll_out(rec: PayrollRecord) -> dict:
         "kpi2_paid": bool(rec.kpi2_paid),
         "kpi2_bonus_percent": float(rec.grade_kpi2_bonus_percent),
         "kpi2_min_retention_pct": float(rec.grade_kpi2_min_retention_pct),
+        "kpi3_as_revenue": float(rec.kpi3_as_revenue),
+        "kpi3_bonus_amount": float(rec.kpi3_bonus_amount),
+        "kpi3_bonus_percent": 5.0,
         "scheme": rec.scheme or "margin",
         "sales_new": float(rec.sales_new),
         "sales_expansion": float(rec.sales_expansion),
@@ -347,10 +360,12 @@ def calculate_payroll(payload: PayrollCalcIn, db: Session = Depends(get_db), pro
         )
     else:
         # АРТ: план и ступени считаются по отдельному показателю «Маржа за месяц»,
-        # а премии — по марже услуг/товаров (в них могут быть долги прошлых месяцев)
+        # а премии — по марже услуг/товаров (в них могут быть долги прошлых месяцев).
+        # Все суммы менеджер вносит уже без НДС — вычет НДС не применяется.
         margin_for_plan = round(float(payload.month_margin), 2)
         bonus_percent = _resolve_bonus_percent(grade, margin_for_plan)
-        calc = _calc(base_salary, bonus_percent, service_factor, payload, kpi2_bonus)
+        kpi3_bonus = _calc_kpi3(payload.kpi3_as_revenue)
+        calc = _calc(base_salary, bonus_percent, service_factor, payload, kpi2_bonus, kpi3_bonus)
         if has_plan and plan_margin and plan_margin > 0:
             performance_pct = round(margin_for_plan / plan_margin * 100, 2)
         else:
@@ -380,6 +395,8 @@ def calculate_payroll(payload: PayrollCalcIn, db: Session = Depends(get_db), pro
             kpi2_paid=kpi2_paid,
             grade_kpi2_bonus_percent=float(grade.get("kpi2_bonus_percent", 5.0)),
             grade_kpi2_min_retention_pct=float(grade.get("kpi2_min_retention_pct", 80.0)),
+            kpi3_as_revenue=payload.kpi3_as_revenue,
+            kpi3_bonus_amount=kpi3_bonus,
             scheme="margin",
             **calc,
         )
@@ -436,7 +453,7 @@ def summary(db: Session = Depends(get_db), profile: dict = Depends(get_current_p
             services_bonus=float(r.services_bonus),
             goods_bonus=float(r.goods_bonus),
             bonus_total=float(r.bonus_total),
-            bonus_total_with_kpi2=round(float(r.bonus_total) + float(r.kpi2_bonus_amount), 2),
+            bonus_total_with_kpi2=round(float(r.bonus_total) + float(r.kpi2_bonus_amount) + float(r.kpi3_bonus_amount), 2),
             kpi2_bonus_amount=float(r.kpi2_bonus_amount),
             gross_pay=float(r.gross_pay),
             tax_amount=float(r.tax_amount),
