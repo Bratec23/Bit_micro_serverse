@@ -213,6 +213,50 @@ body.view-only .struct{display:none}
   background:var(--blue-soft);color:#00468c;font-size:13px;font-weight:700;text-align:center}
 @media print{.view-banner{display:none!important}}
 
+/* ===== ПАНЕЛЬ ПРАЙСА ===== */
+.price-panel{position:fixed;left:0;top:0;height:100vh;width:370px;z-index:70;background:#fff;
+  box-shadow:8px 0 30px rgba(0,0,0,.18);transform:translateX(-105%);transition:transform .32s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column}
+.price-panel.open{transform:none}
+.pp-head{padding:16px 18px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.pp-head b{font-size:16px;flex:1}
+.pp-close{border:none;background:var(--accent-soft);color:var(--accent-dark);width:30px;height:30px;border-radius:9px;
+  cursor:pointer;font-size:15px;font-weight:800}
+.pp-close:hover{background:var(--accent);color:#fff}
+.pp-search{padding:12px 18px;border-bottom:1px solid var(--line)}
+.pp-search input{width:100%;padding:9px 13px;border:1.5px solid var(--line-strong);border-radius:10px;font-size:13.5px;outline:none}
+.pp-search input:focus{border-color:var(--accent)}
+.pp-hint{padding:8px 18px;font-size:11.5px;color:var(--muted);border-bottom:1px solid var(--line);line-height:1.5}
+.pp-list{flex:1;overflow-y:auto;padding:10px 12px 30px}
+.pp-cat{margin-bottom:6px}
+.pp-cat-head{display:flex;align-items:center;gap:8px;padding:9px 8px;cursor:pointer;user-select:none;border-radius:10px;
+  font-size:13px;font-weight:800;color:var(--accent-dark)}
+.pp-cat-head:hover{background:var(--accent-soft)}
+.pp-cat-head .arr{transition:transform .2s;font-size:11px;color:var(--muted)}
+.pp-cat.open .pp-cat-head .arr{transform:rotate(90deg)}
+.pp-cat .pp-items{display:none;padding:2px 0 6px}
+.pp-cat.open .pp-items{display:block}
+.pp-item{display:flex;align-items:center;gap:8px;padding:8px 10px;margin:3px 0;border:1px solid var(--line);
+  border-radius:11px;cursor:grab;background:#fff;transition:border-color .15s,box-shadow .15s}
+.pp-item:hover{border-color:var(--accent);box-shadow:0 3px 10px rgba(214,51,132,.12)}
+.pp-item:active{cursor:grabbing}
+.pp-item .pp-name{flex:1;font-size:12.5px;line-height:1.4;color:#2a2a30}
+.pp-item .pp-price{white-space:nowrap;font-size:12px;font-weight:800;color:var(--accent-dark)}
+.pp-item .pp-price .u{font-weight:600;color:var(--muted);font-size:11px}
+.pp-add{border:none;background:var(--accent-soft);color:var(--accent);width:26px;height:26px;border-radius:8px;
+  cursor:pointer;font-size:16px;font-weight:800;line-height:1;flex-shrink:0}
+.pp-add:hover{background:var(--accent);color:#fff}
+.pp-empty{padding:30px 16px;text-align:center;color:var(--muted);font-size:13px}
+.price-overlay{position:fixed;inset:0;z-index:65;background:rgba(20,0,12,.25);opacity:0;pointer-events:none;transition:opacity .3s}
+.price-overlay.open{opacity:1;pointer-events:auto}
+/* подсветка блока услуг при перетаскивании */
+.drop-target{outline:3px dashed var(--accent)!important;outline-offset:4px;border-radius:var(--r-md)}
+/* вспышка новой строки */
+@keyframes rowFlash{0%{background:#ffe3f1}100%{background:transparent}}
+tr.row-flash td{animation:rowFlash 1.6s ease-out}
+body.view-only #btnPrice,body.view-only .price-panel,body.view-only .price-overlay{display:none!important}
+@media print{.price-panel,.price-overlay,#btnPrice{display:none!important}}
+
 /* ===== ПОМОЩЬ ===== */
 .help-bg{position:fixed;inset:0;z-index:100;background:rgba(20,0,12,.55);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px)}
 .help-card{background:#fff;border-radius:var(--r-xl);max-width:640px;width:100%;max-height:85vh;overflow-y:auto;padding:30px 32px;box-shadow:0 24px 60px rgba(0,0,0,.3)}
@@ -254,10 +298,20 @@ body.view-only .struct{display:none}
   <input class="tb-doc-title" id="f-title" placeholder="✎ Название КП…" title="Название документа — видно в списке КП" maxlength="120">
   <div class="tb-save" id="saveState">✓ Черновик сохранён</div>
   <div class="tb-spacer"></div>
+  <button class="btn btn-ghost" id="btnPrice" title="Прайс типовых работ — клик или перетаскивание добавляет услугу">📋 Прайс</button>
   <button class="btn btn-ghost" id="btnHelp" title="Как работать с конструктором">❓ Помощь</button>
   <button class="btn btn-ghost" id="btnReset">↺ Сбросить</button>
   <button class="btn btn-primary" id="btnPdf">⬇ Скачать PDF</button>
 </div>
+
+<!-- ===== ПАНЕЛЬ ПРАЙСА ===== -->
+<div class="price-overlay" id="priceOverlay"></div>
+<aside class="price-panel" id="pricePanel">
+  <div class="pp-head"><b>📋 Прайс АРТ · типовые работы</b><button class="pp-close" id="priceClose" title="Закрыть (Esc)">×</button></div>
+  <div class="pp-search"><input id="priceSearch" placeholder="Поиск по прайсу… (например: сканер, обмен, ккт)"></div>
+  <div class="pp-hint">Кликните по позиции или перетащите её в таблицу «Услуги» — подставятся наименование и стоимость. Цены с НДС 5%. «от» — минимальная стоимость, скорректируйте после оценки.</div>
+  <div class="pp-list" id="priceList"></div>
+</aside>
 
 <!-- ===== СТРУКТУРА КП (вкл/выкл блоков) ===== -->
 <div class="struct no-print">
@@ -484,6 +538,7 @@ body.view-only .struct{display:none}
     <div class="help-sec"><b>🖼 Расширенный вид решения</b><p>Кнопка «Расширенный вид» в разделе «Предлагаемое решение» превращает текст в витрину: крупный текстовый блок слева и фотокарточки продукта справа. Можно добавлять и дополнительные текстовые блоки.</p></div>
     <div class="help-sec"><b>📷 Фото</b><p>В блоках «Оборудование» и «Лицензии» кликните «+ фото» в строке, чтобы прикрепить изображение позиции. Фото менеджера загружается кликом по рамке внизу документа.</p></div>
     <div class="help-sec"><b>📄 PDF</b><p>«Скачать PDF» открывает диалог печати — выберите «Сохранить как PDF». Дата, адрес и служебные подписи браузера в документ не попадают.</p></div>
+    <div class="help-sec"><b>📋 Прайс типовых работ</b><p>Кнопка «Прайс» в тулбаре открывает панель слева со стоимостью типовых работ (цены с НДС 5%). Найдите услугу поиском, кликните по ней или перетащите в таблицу «Услуги» — подставятся наименование и цена. Цены «от» — минимальные, скорректируйте после оценки; «за час» — укажите количество часов в колонке «Кол-во».</p></div>
     <div class="help-sec"><b>⧉ Копия и 🌐 общий доступ</b><p>В списке КП кнопка ⧉ создаёт копию документа со всем наполнением. Кнопка 🌐 публикует КП в «Общие КП» — его увидят все пользователи и смогут скопировать себе.</p></div>
     <button class="btn btn-primary help-close" id="helpClose">Понятно</button>
   </div>
@@ -668,6 +723,213 @@ function renderTotals(){
 $('addEquip').addEventListener('click',()=>{state.equip.push({name:'Новая позиция',qty:1,price:0,photo:null}); renderEquip(); save();});
 $('addLic').addEventListener('click',()=>{state.lic.push({name:'Новая лицензия',qty:1,price:0,photo:null}); renderLic(); save();});
 $('addServ').addEventListener('click',()=>{state.serv.push({name:'Новая услуга',qty:1,price:0,photo:null}); renderServ(); save();});
+
+/* ================= ПАНЕЛЬ ПРАЙСА ================= */
+/* n — наименование, p — цена с НДС 5%, u — 'час' если почасовая, from — 'от' (минимальная цена) */
+const PRICE_LIST=[
+ {cat:'💻 Работы в 1С',items:[
+  {n:'Обновление типовой 1С',p:3465,u:'час'},
+  {n:'Обновление НЕтиповой 1С',p:3465,u:'час'},
+  {n:'Обучение работе в 1С',p:3465,u:'час'},
+  {n:'Составление инструкций (по запросу клиента)',p:3465,u:'час'},
+  {n:'Настройка ЭДО',p:3150},
+  {n:'Настройка отчёта ABC/XYZ + обучение',p:3465,from:true},
+  {n:'Настройка рассылки уведомлений дебиторам',p:17850},
+  {n:'Восстановление лицензии 1С',p:3150},
+  {n:'Настройка резервного копирования',p:3150},
+  {n:'Устранение пересортицы по аналитике',p:6825},
+  {n:'Загрузка номенклатуры из Excel от поставщиков',p:12600,from:true},
+  {n:'Разделение складов / распределение товаров по складам',p:6300,from:true},
+  {n:'Настройка логотипа в документах (ТОРГ-12, накладная, счёт)',p:1750},
+  {n:'Автоматическая отправка документов по e-mail',p:6825},
+  {n:'Настройка обработки «Клиент-банк»',p:6825,from:true},
+  {n:'Настройка прав пользователей',p:1750},
+  {n:'Настройка РИБ (между 2 базами)',p:10395},
+  {n:'Перенос информационной базы на другое рабочее место',p:3465,from:true},
+  {n:'Установка/переустановка типовых ПП, перенос базы на сервер',p:3465,from:true},
+ ]},
+ {cat:'🔄 Обмены и интеграции',items:[
+  {n:'Настройка обмена 1С ↔ 1С',p:6930,from:true},
+  {n:'Настройка обмена 1С с Frontol',p:6825},
+  {n:'Настройка обмена 1С с сайтом',p:10500,from:true},
+  {n:'Корректировка типовых правил обмена',p:7875,from:true},
+  {n:'Настройка разделения печати на базе Frontol',p:3465,u:'час'},
+ ]},
+ {cat:'🎁 Лояльность и СБП',items:[
+  {n:'Настройка системы лояльности в 1С',p:6930,from:true},
+  {n:'Настройка системы лояльности (индивидуальный запрос)',p:10395,from:true},
+  {n:'Подключение сервисов лояльности (UDS, Kilbil)',p:26250,from:true},
+  {n:'Настройка СБП со статическим QR-кодом (консультация)',p:3465,from:true},
+  {n:'Настройка СБП с динамическим QR-кодом',p:6000,from:true},
+ ]},
+ {cat:'🏷 Маркировка и гос. системы',items:[
+  {n:'Интеграция 1С с «Честным знаком» (производитель)',p:8820,from:true},
+  {n:'Интеграция 1С с «Честным знаком» (дистрибьютор)',p:4410},
+  {n:'Интеграция 1С с «Честным знаком» (реализатор)',p:8820,from:true},
+  {n:'Обучение работе с «Честным знаком» в 1С',p:4410,from:true},
+  {n:'Регистрация в ВетИС',p:8820},
+  {n:'Интеграция 1С с ВетИС',p:8820,from:true},
+  {n:'Обучение работе 1С с ВетИС',p:4410},
+  {n:'Интеграция 1С с ФГИС Зерно',p:8820,from:true},
+  {n:'Регистрация в ГИС Сатурн',p:8820,from:true},
+  {n:'Интеграция 1С с ГИС Сатурн',p:8820,from:true},
+  {n:'Регистрация в системе МДЛП',p:4410},
+  {n:'Интеграция 1С с МДЛП',p:8820},
+  {n:'Обучение работе МДЛП с 1С',p:8820,from:true},
+  {n:'Регистрация в ЕГАИС',p:4410,from:true},
+  {n:'Интеграция 1С с ЕГАИС',p:8820},
+  {n:'Обучение работе 1С с ЕГАИС',p:4410,from:true},
+ ]},
+ {cat:'🧾 ККТ и ФНС',items:[
+  {n:'Снятие ККТ с учёта ФНС, закрытие архива ФН',p:3675},
+  {n:'Регистрация ККТ на сайте ФНС + ЛК ОФД',p:4830},
+  {n:'Перерегистрация ККТ (замена ФН)',p:4305},
+  {n:'Перерегистрация ККТ (смена реквизитов)',p:4095},
+  {n:'Смена реквизитов в ККТ',p:2625},
+  {n:'Подключение ККТ к 1С (локально, 1 рабочее место)',p:3150},
+  {n:'Подключение ККТ к 1С (тонкий клиент / сервер)',p:4410},
+  {n:'Обновление прошивки ККТ на Платформу 5.0',p:4410},
+  {n:'Обновление прошивки ККТ 5.0 с промежуточной П2.5',p:4410},
+  {n:'Подключение эквайринга к 1С',p:4410},
+  {n:'Настройка логотипа на чеке',p:3465,from:true},
+  {n:'Обучение работе в автономной ККТ',p:4410,u:'час'},
+ ]},
+ {cat:'🖥 POS и Эвотор',items:[
+  {n:'Настройка POS-системы (БИТ.Аппетит, Frontol и др.)',p:21000},
+  {n:'Настройка эквайринга на Эвотор',p:3465},
+  {n:'Решение СБП для Эвотора (дисплей QR «ikod»)',p:3465},
+  {n:'Настройка отправки чека на e-mail',p:3465},
+ ]},
+ {cat:'🔌 Торговое оборудование',items:[
+  {n:'Подключение программируемой клавиатуры',p:4410,u:'час'},
+  {n:'Подключение дисплея покупателя к 1С',p:4410,u:'час'},
+  {n:'Подключение проводного сканера ШК к 1С',p:3675},
+  {n:'Подключение беспроводного сканера ШК',p:4410},
+  {n:'Настройка сканера ШК под маркировку',p:4410},
+  {n:'Подключение электронных весов к 1С (без печати этикетки)',p:4410},
+  {n:'Подключение электронных весов к 1С + макет этикетки',p:8820,from:true},
+  {n:'Подключение ридера магнитных карт',p:4410},
+  {n:'Подключение принтера этикеток к 1С (без макета)',p:3675},
+  {n:'Настройка макета этикетки с логотипом',p:4410,from:true},
+  {n:'Подключение ТСД к 1С по проводу (без маркировки)',p:14700,from:true},
+  {n:'Подключение ТСД к 1С по проводу (с маркировкой)',p:42000,from:true},
+  {n:'Подключение ТСД к 1С по Wi-Fi (без маркировки)',p:13650,from:true},
+  {n:'Подключение ТСД к 1С по Wi-Fi (с маркировкой)',p:42000,from:true},
+  {n:'Установка счётчиков посетителей Megacount',p:8820,from:true},
+  {n:'Настройка мониторинга СПП для руководителя (удалённо)',p:8820,from:true},
+  {n:'Подключение принтера чеков',p:4200},
+  {n:'Диагностика любого оборудования',p:1155},
+  {n:'Замена термопечатающей головки',p:4410},
+ ]},
+ {cat:'🌐 IT-инфраструктура и сервис',items:[
+  {n:'Установка Windows Server',p:8820,from:true},
+  {n:'Первоначальная настройка сетевого оборудования',p:4410,from:true},
+  {n:'Настройка принтера или МФУ',p:4410,from:true},
+  {n:'Настройка VPN-туннелей (объединение офисов)',p:35280,from:true},
+  {n:'Установка и настройка SQL (MySQL, PostgreSQL, MSSQL)',p:35280,from:true},
+  {n:'Установка и настройка сервера 1С (кластер)',p:8820,from:true},
+  {n:'Создание виртуальных машин',p:4410,from:true},
+  {n:'Установка и настройка Active Directory',p:52920,from:true},
+  {n:'Настройка файловых серверов',p:52920,from:true},
+  {n:'Монтаж и настройка видеокамер (IP, PoE)',p:4410,from:true},
+  {n:'Настройка видеорегистратора',p:4410,from:true},
+  {n:'Чистка ПК от пыли + замена термопасты',p:4410,from:true},
+  {n:'Замена комплектующих ПК',p:2205,from:true},
+  {n:'Диагностика отказоустойчивых частей ПК',p:4410,from:true},
+  {n:'Программный анализ и устранение отказов софта',p:8820,from:true},
+  {n:'Обновление ПО',p:4410,from:true},
+  {n:'Безопасный перенос данных',p:2205,from:true},
+  {n:'Устранение зависаний компьютера',p:2205,from:true},
+  {n:'Диагностика и устранение мелких проблем ПК',p:2205,from:true},
+  {n:'Укладка проводов на рабочем месте',p:4410,from:true},
+  {n:'Восстановление ПК с точки восстановления',p:4410},
+  {n:'Создание регулярной точки восстановления системы',p:2205},
+  {n:'Установка Windows',p:4410,from:true},
+  {n:'Установка драйверов и программ',p:2205,from:true},
+  {n:'Обновление БИОС',p:4410,from:true},
+  {n:'Настройка роутера',p:4410,from:true},
+  {n:'Сборка ПК под заказ',p:4410,from:true},
+ ]},
+];
+
+function renderPricePanel(filter){
+  const box=$('priceList'); box.innerHTML='';
+  const q=(filter||'').trim().toLowerCase();
+  let shown=0;
+  PRICE_LIST.forEach((c,ci)=>{
+    const items=c.items.filter(it=>!q||it.n.toLowerCase().includes(q));
+    if(!items.length) return;
+    const cat=document.createElement('div');
+    cat.className='pp-cat'+(q||shown===0&&ci===0?' open':'');
+    cat.innerHTML=`<div class="pp-cat-head"><span class="arr">▶</span>${escH(c.cat)} <span style="color:var(--muted);font-weight:600">${items.length}</span></div>`;
+    const itemsBox=document.createElement('div'); itemsBox.className='pp-items';
+    items.forEach(it=>{
+      const el=document.createElement('div');
+      el.className='pp-item'; el.draggable=true; el.title='Клик — добавить в «Услуги», или перетащите в таблицу';
+      const price=(it.from?'от&nbsp;':'')+fmt(it.p).replace(' ₽','')+'&nbsp;₽'+(it.u?'<span class="u">/'+it.u+'</span>':'');
+      el.innerHTML=`<span class="pp-name">${escH(it.n)}</span><span class="pp-price mono">${price}</span><button class="pp-add" title="Добавить в услуги">+</button>`;
+      el.addEventListener('click',()=>addFromPrice(it));
+      el.addEventListener('dragstart',(e)=>{
+        e.dataTransfer.setData('text/plain',JSON.stringify(it));
+        e.dataTransfer.effectAllowed='copy';
+      });
+      itemsBox.appendChild(el); shown++;
+    });
+    cat.querySelector('.pp-cat-head').addEventListener('click',()=>cat.classList.toggle('open'));
+    cat.appendChild(itemsBox);
+    box.appendChild(cat);
+  });
+  if(!shown) box.innerHTML='<div class="pp-empty">Ничего не найдено.<br>Попробуйте изменить запрос.</div>';
+}
+
+function addFromPrice(it){
+  if(!state.show.serv){ state.show.serv=true; renderStructure(); }
+  state.serv.push({name:it.n,qty:1,price:it.p,photo:null});
+  renderServ(); save();
+  const rows=$('bodyServ').querySelectorAll('tr');
+  const last=rows[rows.length-1];
+  if(last){
+    last.classList.add('row-flash');
+    last.scrollIntoView({behavior:'smooth',block:'center'});
+    setTimeout(()=>last.classList.remove('row-flash'),1700);
+  }
+}
+
+function togglePricePanel(open){
+  const panel=$('pricePanel'),ov=$('priceOverlay');
+  const willOpen=open!==undefined?open:!panel.classList.contains('open');
+  panel.classList.toggle('open',willOpen);
+  ov.classList.toggle('open',willOpen);
+  if(willOpen){ renderPricePanel($('priceSearch').value); $('priceSearch').focus(); }
+}
+$('btnPrice').addEventListener('click',()=>togglePricePanel());
+$('priceClose').addEventListener('click',()=>togglePricePanel(false));
+$('priceOverlay').addEventListener('click',()=>togglePricePanel(false));
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') togglePricePanel(false); });
+let priceSearchT=null;
+$('priceSearch').addEventListener('input',()=>{
+  clearTimeout(priceSearchT);
+  priceSearchT=setTimeout(()=>renderPricePanel($('priceSearch').value),150);
+});
+
+/* drop-зона — таблица «Услуги» */
+(function(){
+  const zone=document.querySelector('[data-block="serv"]');
+  if(!zone) return;
+  zone.addEventListener('dragover',(e)=>{
+    if(e.dataTransfer&&[...e.dataTransfer.types].includes('text/plain')){
+      e.preventDefault(); e.dataTransfer.dropEffect='copy'; zone.classList.add('drop-target');
+    }
+  });
+  zone.addEventListener('dragleave',(e)=>{ if(!zone.contains(e.relatedTarget)) zone.classList.remove('drop-target'); });
+  zone.addEventListener('drop',(e)=>{
+    e.preventDefault(); zone.classList.remove('drop-target');
+    try{
+      const it=JSON.parse(e.dataTransfer.getData('text/plain'));
+      if(it&&it.n&&typeof it.p==='number') addFromPrice(it);
+    }catch(err){}
+  });
+})();
 
 /* ================= ЭТАПЫ ================= */
 function renderStages(){
