@@ -16,6 +16,15 @@ class Settings(BaseSettings):
 
     PASSWORD_RESET_CODE_TTL_MINUTES: int = 15
 
+    # SMTP для отправки писем (сброс пароля). Если SMTP_HOST пуст — dev-режим: код пишется в консоль.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 465
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_FROM_NAME: str = "Бит.Serves"
+    SMTP_USE_SSL: bool = True  # True = SSL (порт 465), False = STARTTLS (порт 587)
+
     POSTGRES_USER: str = "bitserves"
     POSTGRES_PASSWORD: str = "bitserves_password"
     POSTGRES_DB_AUTH: str = "auth_db"

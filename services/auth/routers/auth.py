@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.audit import log_event
 from app.config import settings
 from app.database import get_db
+from app.mailer import send_password_reset_code, smtp_configured
 from app.models import Department, Grade, LoginAudit, PasswordResetToken, Position, User
 from app.rate_limit import forgot_limiter, login_limiter, register_limiter, reset_limiter
 from app.security import (
@@ -363,7 +364,22 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Sessio
     db.add(token_row)
     db.commit()
 
-    print(f"[PASSWORD RESET] email={user.email} code={code} ttl={settings.PASSWORD_RESET_CODE_TTL_MINUTES}m", flush=True)
+    if smtp_configured():
+        try:
+            send_password_reset_code(
+                user.email, code, settings.PASSWORD_RESET_CODE_TTL_MINUTES
+            )
+        except Exception as exc:  # SMTP недоступен / неверные креды / сеть
+            log_event(db, request, "forgot", user.email, success=False,
+                      user_id=user.id, detail=f"smtp error: {type(exc).__name__}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Не удалось отправить письмо. Попробуйте позже или обратитесь к руководителю.",
+            )
+    else:
+        # Dev-режим: SMTP не настроен — код в консоль сервера
+        print(f"[PASSWORD RESET] email={user.email} code={code} "
+              f"ttl={settings.PASSWORD_RESET_CODE_TTL_MINUTES}m", flush=True)
     log_event(db, request, "forgot", user.email, success=True, user_id=user.id)
     return {"sent": True, "ttl_minutes": settings.PASSWORD_RESET_CODE_TTL_MINUTES}
 
