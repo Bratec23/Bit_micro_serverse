@@ -29,6 +29,7 @@ SERVICES = [
     ("dashboard", 8003, {}),
     ("kp", 8004, {"DATABASE_URL": f"sqlite:///{DATA_DIR / 'kp.db'}"}),
     ("funnel", 8005, {}),
+    ("pix", 8006, {}),
 ]
 
 procs: list[subprocess.Popen] = []

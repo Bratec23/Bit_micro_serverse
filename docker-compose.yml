@@ -118,6 +118,15 @@ services:
       - "${FUNNEL_SERVICE_PORT}:8005"
     restart: unless-stopped
 
+  pix-service:
+    build: ./services/pix
+    container_name: bitserves_pix
+    expose:
+      - "8006"
+    ports:
+      - "${PIX_SERVICE_PORT}:8006"
+    restart: unless-stopped
+
   gateway:
     image: nginx:alpine
     container_name: bitserves_gateway
@@ -132,6 +141,7 @@ services:
       - dashboard-service
       - kp-service
       - funnel-service
+      - pix-service
     restart: unless-stopped
 
 volumes:

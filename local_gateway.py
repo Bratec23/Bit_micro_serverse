@@ -20,9 +20,14 @@ ROUTES = [
     ("/health", 8001),
 ]
 
-# funnel-service (:8005) — статический дашборд воронки продаж.
-# Префикс /funnel срезается: сервис отдаёт страницу из своего корня.
-FUNNEL_PORT = 8005
+# Статические сервисы-витрины: (url-префикс, порт). Префикс срезается —
+# сервисы отдают свои страницы из корня.
+#   funnel-service (:8005) — воронка продаж «Промышленная маркировка»
+#   pix-service    (:8006) — калькулятор внедрения PIX Operator
+STATIC_SERVICES = [
+    ("/funnel", 8005),
+    ("/pix", 8006),
+]
 
 HOP_HEADERS = {"connection", "keep-alive", "transfer-encoding", "content-encoding", "content-length"}
 
@@ -37,18 +42,24 @@ def _target(path: str) -> int | None:
     return None
 
 
-@app.api_route("/funnel", methods=["GET"])
-@app.api_route("/funnel/{path:path}", methods=["GET"])
-async def proxy_funnel(request: Request):
-    # срезаем префикс /funnel — сервис отдаёт статику из корня
-    path = request.url.path[len("/funnel"):] or "/"
-    url = f"http://127.0.0.1:{FUNNEL_PORT}{path}"
-    if request.url.query:
-        url += "?" + request.url.query
-    headers = {k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")}
-    resp = client.request("GET", url, headers=headers)
-    out_headers = {k: v for k, v in resp.headers.items() if k.lower() not in HOP_HEADERS}
-    return Response(content=resp.content, status_code=resp.status_code, headers=out_headers)
+def _register_static_service(prefix: str, port: int) -> None:
+    async def proxy_static(request: Request):
+        # срезаем префикс — сервис отдаёт статику из корня
+        path = request.url.path[len(prefix):] or "/"
+        url = f"http://127.0.0.1:{port}{path}"
+        if request.url.query:
+            url += "?" + request.url.query
+        headers = {k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")}
+        resp = client.request("GET", url, headers=headers)
+        out_headers = {k: v for k, v in resp.headers.items() if k.lower() not in HOP_HEADERS}
+        return Response(content=resp.content, status_code=resp.status_code, headers=out_headers)
+
+    app.add_api_route(prefix, proxy_static, methods=["GET"])
+    app.add_api_route(prefix + "/{path:path}", proxy_static, methods=["GET"])
+
+
+for _prefix, _port in STATIC_SERVICES:
+    _register_static_service(_prefix, _port)
 
 
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
