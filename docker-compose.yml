@@ -109,6 +109,15 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  funnel-service:
+    build: ./services/funnel
+    container_name: bitserves_funnel
+    expose:
+      - "8005"
+    ports:
+      - "${FUNNEL_SERVICE_PORT}:8005"
+    restart: unless-stopped
+
   gateway:
     image: nginx:alpine
     container_name: bitserves_gateway
@@ -122,6 +131,7 @@ services:
       - payroll-service
       - dashboard-service
       - kp-service
+      - funnel-service
     restart: unless-stopped
 
 volumes:
