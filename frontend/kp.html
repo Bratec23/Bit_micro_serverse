@@ -161,6 +161,22 @@ table.doc textarea.ed{font-size:13.5px;resize:none;overflow:hidden;line-height:1
 .grand-total .gt-lbl{font-size:14px;font-weight:700;opacity:.85}
 .grand-total .gt-val{font-size:28px;font-weight:850;letter-spacing:-.01em}
 
+/* варианты решения */
+.var-wrap{border:1.5px solid var(--line);border-radius:var(--r-lg);padding:16px 16px 6px;margin-bottom:16px}
+.var-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.var-head .v-num{font-size:12px;font-weight:800;color:#fff;background:var(--accent);border-radius:8px;padding:4px 10px;white-space:nowrap;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+.var-name{flex:1;font-size:15px;font-weight:750;border:none;border-bottom:1.5px dashed var(--line-strong);padding:5px 2px;outline:none;background:transparent}
+.var-name:focus{border-color:var(--accent)}
+.var-del{border:none;background:var(--accent-soft);color:var(--accent);width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:15px;font-weight:800}
+.var-del:hover{background:var(--accent);color:#fff}
+.var-total{display:flex;justify-content:space-between;align-items:center;margin:14px 0 10px;padding:14px 20px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-dark));border-radius:var(--r-md);color:#fff;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+.var-total .vt-lbl{font-size:13px;font-weight:700;opacity:.9}
+.var-total .vt-lbl span{font-size:11px;opacity:.7;font-weight:600}
+.var-total .vt-val{font-size:22px;font-weight:850}
+
 /* менеджер */
 .mgr{display:grid;grid-template-columns:150px 1fr;gap:26px;align-items:start}
 @media(max-width:640px){.mgr{grid-template-columns:1fr}}
@@ -208,6 +224,7 @@ table.doc textarea.ed{font-size:13.5px;resize:none;overflow:hidden;line-height:1
 
 body.view-only .no-print{display:none!important}
 body.view-only .ed{pointer-events:none;border-color:transparent!important}
+body.view-only .var-name{pointer-events:none;border-color:transparent!important}
 body.view-only .struct{display:none}
 .view-banner{position:sticky;top:64px;z-index:40;margin:12px auto 0;max-width:1060px;padding:10px 18px;border-radius:12px;
   background:var(--blue-soft);color:#00468c;font-size:13px;font-weight:700;text-align:center}
@@ -276,6 +293,8 @@ body.view-only #btnPrice,body.view-only .price-panel,body.view-only .price-overl
   .page{max-width:none;margin:0;padding:12mm}
   .card,.budget-block{box-shadow:none;border:1px solid rgba(0,0,0,.12);margin-bottom:14px;padding:22px}
   .budget-block{break-inside:avoid}
+  .var-wrap{border:1px solid rgba(0,0,0,.15);break-inside:avoid}
+  .var-name{border-color:transparent!important;font-size:15px}
   table.doc tr{break-inside:avoid}
   .cover{margin-bottom:14px;padding:30px}
   .cover h1,.cover .h1-ed{font-size:30px}
@@ -308,7 +327,9 @@ body.view-only #btnPrice,body.view-only .price-panel,body.view-only .price-overl
 <div class="price-overlay" id="priceOverlay"></div>
 <aside class="price-panel" id="pricePanel">
   <div class="pp-head"><b>📋 Прайс АРТ · типовые работы</b><button class="pp-close" id="priceClose" title="Закрыть (Esc)">×</button></div>
-  <div class="pp-search"><input id="priceSearch" placeholder="Поиск по прайсу… (например: сканер, обмен, ккт)"></div>
+  <div class="pp-search"><input id="priceSearch" placeholder="Поиск по прайсу… (например: сканер, обмен, ккт)">
+    <select id="ppTarget" style="display:none;margin-top:8px;width:100%;padding:8px 10px;border:1.5px solid var(--line-strong);border-radius:10px;font-size:13px;background:#fff"></select>
+  </div>
   <div class="pp-hint">Кликните по позиции или перетащите её в таблицу «Услуги» — подставятся наименование и стоимость. Цены с НДС 5%. «от» — минимальная стоимость, скорректируйте после оценки.</div>
   <div class="pp-list" id="priceList"></div>
 </aside>
@@ -400,75 +421,22 @@ body.view-only #btnPrice,body.view-only .price-panel,body.view-only .price-overl
     </div>
   </section>
 
-  <!-- ===== 03 БЮДЖЕТ: 3 БЛОКА ===== -->
+  <!-- ===== 03 БЮДЖЕТ: ВАРИАНТЫ РЕШЕНИЯ ===== -->
   <section class="card" id="budgetCard">
     <div class="sec-num">03</div>
     <div class="sec-tag">Бюджет</div>
     <h2>Состав и стоимость</h2>
-    <p class="lead">Три блока: оборудование, лицензии и услуги. В оборудовании и лицензиях можно прикрепить фото — кликните по рамке в строке. Блоки включаются и выключаются в панели «Структура КП» наверху.</p>
+    <p class="lead">Три блока: оборудование, лицензии и услуги. В оборудовании и лицензиях можно прикрепить фото — кликните по рамке в строке. Блоки включаются и выключаются в панели «Структура КП» наверху. Нужно предложить клиенту два решения на выбор? Нажмите «Добавить вариант решения» — в PDF попадут оба, каждый со своим итогом.</p>
 
-    <!-- Оборудование -->
-    <div class="budget-block" data-block="equip">
-      <div class="bb-head">
-        <div class="bb-badge pink">🖨️</div>
-        <div><h3>Торговое оборудование</h3></div>
-        <button class="btn btn-mini grey bb-hide no-print" data-hide="equip">убрать блок</button>
-      </div>
-      <table class="doc">
-        <thead><tr>
-          <th class="photo-cell">Фото</th><th>Позиция</th>
-          <th style="width:80px" class="num">Кол-во</th><th style="width:140px" class="num">Цена, ₽</th>
-          <th style="width:140px" class="num">Сумма, ₽</th><th class="no-print" style="width:34px"></th>
-        </tr></thead>
-        <tbody id="bodyEquip"></tbody>
-      </table>
-      <div class="no-print" style="margin-top:10px"><button class="btn btn-mini" id="addEquip">+ Добавить позицию</button></div>
-      <div class="bb-total">Итого оборудование <b class="mono" id="totEquip">0 ₽</b></div>
+    <div id="variantsBox"></div>
+    <div class="no-print" style="margin-top:14px">
+      <button class="btn btn-mini" id="addVariant">＋ Добавить вариант решения</button>
     </div>
 
-    <!-- Лицензии -->
-    <div class="budget-block" data-block="lic">
-      <div class="bb-head">
-        <div class="bb-badge blue">🔑</div>
-        <div><h3>Лицензии и ПО</h3></div>
-        <button class="btn btn-mini grey bb-hide no-print" data-hide="lic">убрать блок</button>
-      </div>
-      <table class="doc">
-        <thead><tr>
-          <th class="photo-cell">Фото</th><th>Позиция</th>
-          <th style="width:80px" class="num">Кол-во</th><th style="width:140px" class="num">Цена, ₽</th>
-          <th style="width:140px" class="num">Сумма, ₽</th><th class="no-print" style="width:34px"></th>
-        </tr></thead>
-        <tbody id="bodyLic"></tbody>
-      </table>
-      <div class="no-print" style="margin-top:10px"><button class="btn btn-mini" id="addLic">+ Добавить позицию</button></div>
-      <div class="bb-total">Итого лицензии <b class="mono" id="totLic">0 ₽</b></div>
-    </div>
-
-    <!-- Услуги -->
-    <div class="budget-block" data-block="serv">
-      <div class="bb-head">
-        <div class="bb-badge green">🛠️</div>
-        <div><h3>Услуги</h3></div>
-        <button class="btn btn-mini grey bb-hide no-print" data-hide="serv">убрать блок</button>
-      </div>
-      <table class="doc">
-        <thead><tr>
-          <th>Услуга</th>
-          <th style="width:80px" class="num">Кол-во</th><th style="width:140px" class="num">Цена, ₽</th>
-          <th style="width:140px" class="num">Сумма, ₽</th><th class="no-print" style="width:34px"></th>
-        </tr></thead>
-        <tbody id="bodyServ"></tbody>
-      </table>
-      <div class="no-print" style="margin-top:10px"><button class="btn btn-mini" id="addServ">+ Добавить услугу</button></div>
-      <div class="bb-total">Итого услуги <b class="mono" id="totServ">0 ₽</b></div>
-    </div>
-
-    <div class="grand-total">
-      <div class="gt-lbl">Итого по предложению<br/><span style="font-size:11.5px;opacity:.7">с НДС 5% · финальная цена — в договоре</span></div>
+    <div class="grand-total" id="grandTotalBar">
+      <div class="gt-lbl">Итого по предложению<br/><span style="font-size:11.5px;opacity:.7">цены с НДС · финальная цена — в договоре</span></div>
       <div style="text-align:right">
         <div class="gt-val mono" id="grandTotal">0 ₽</div>
-        <div class="mono" id="grandBase" style="font-size:12px;opacity:.75;margin-top:2px">без НДС: 0 ₽</div>
       </div>
     </div>
   </section>
@@ -538,7 +506,8 @@ body.view-only #btnPrice,body.view-only .price-panel,body.view-only .price-overl
     <div class="help-sec"><b>🖼 Расширенный вид решения</b><p>Кнопка «Расширенный вид» в разделе «Предлагаемое решение» превращает текст в витрину: крупный текстовый блок слева и фотокарточки продукта справа. Можно добавлять и дополнительные текстовые блоки.</p></div>
     <div class="help-sec"><b>📷 Фото</b><p>В блоках «Оборудование» и «Лицензии» кликните «+ фото» в строке, чтобы прикрепить изображение позиции. Фото менеджера загружается кликом по рамке внизу документа.</p></div>
     <div class="help-sec"><b>📄 PDF</b><p>«Скачать PDF» открывает диалог печати — выберите «Сохранить как PDF». Дата, адрес и служебные подписи браузера в документ не попадают.</p></div>
-    <div class="help-sec"><b>📋 Прайс типовых работ</b><p>Кнопка «Прайс» в тулбаре открывает панель слева со стоимостью типовых работ (цены с НДС 5%). Найдите услугу поиском, кликните по ней или перетащите в таблицу «Услуги» — подставятся наименование и цена. Цены «от» — минимальные, скорректируйте после оценки; «за час» — укажите количество часов в колонке «Кол-во».</p></div>
+    <div class="help-sec"><b>🧩 Варианты решения</b><p>Кнопка «Добавить вариант решения» в разделе «Бюджет» создаёт второй (третий…) комплект таблиц — например, два разных ПО или два подхода к реализации. У каждого варианта своё название и свой итог. В PDF попадают все варианты друг за другом. В панели «Прайс» появится выбор, в какой вариант добавлять позиции.</p></div>
+    <div class="help-sec"><b>📋 Прайс типовых работ</b><p>Кнопка «Прайс» в тулбаре открывает панель слева со стоимостью типовых работ (цены с НДС). Найдите услугу поиском, кликните по ней или перетащите в таблицу «Услуги» — подставятся наименование и цена. Цены «от» — минимальные, скорректируйте после оценки; «за час» — укажите количество часов в колонке «Кол-во».</p></div>
     <div class="help-sec"><b>⧉ Копия и 🌐 общий доступ</b><p>В списке КП кнопка ⧉ создаёт копию документа со всем наполнением. Кнопка 🌐 публикует КП в «Общие КП» — его увидят все пользователи и смогут скопировать себе.</p></div>
     <button class="btn btn-primary help-close" id="helpClose">Понятно</button>
   </div>
@@ -553,21 +522,24 @@ const fmt=(n)=>new Intl.NumberFormat('ru-RU').format(Math.round(n))+' ₽';
 let state={
   fields:{},
   show:{context:true,solution:true,equip:true,lic:true,serv:true,stages:true,terms:true,next:true},
-  equip:[
-    {name:'POS-терминал сенсорный 15"', qty:2, price:42000, photo:null},
-    {name:'Сканер штрихкодов 2D', qty:2, price:7500, photo:null},
-    {name:'Фискальный регистратор (ФН-15)', qty:2, price:28500, photo:null},
-  ],
-  lic:[
-    {name:'1С:Розница 8 ПРОФ (лицензия на рабочее место)', qty:2, price:26000, photo:null},
-    {name:'Подписка на обновления и поддержку, 12 мес', qty:1, price:18000, photo:null},
-  ],
-  serv:[
-    {name:'Настройка и подключение оборудования', qty:1, price:15000, photo:null},
-    {name:'Интеграция с учётной системой 1С', qty:1, price:25000, photo:null},
-    {name:'Обучение персонала (2 часа, выезд)', qty:1, price:8000, photo:null},
-    {name:'Сервисный контракт, 1 год', qty:1, price:36000, photo:null},
-  ],
+  variants:[{
+    name:'Вариант 1',
+    equip:[
+      {name:'POS-терминал сенсорный 15"', qty:2, price:42000, photo:null},
+      {name:'Сканер штрихкодов 2D', qty:2, price:7500, photo:null},
+      {name:'Фискальный регистратор (ФН-15)', qty:2, price:28500, photo:null},
+    ],
+    lic:[
+      {name:'1С:Розница 8 ПРОФ (лицензия на рабочее место)', qty:2, price:26000, photo:null},
+      {name:'Подписка на обновления и поддержку, 12 мес', qty:1, price:18000, photo:null},
+    ],
+    serv:[
+      {name:'Настройка и подключение оборудования', qty:1, price:15000, photo:null},
+      {name:'Интеграция с учётной системой 1С', qty:1, price:25000, photo:null},
+      {name:'Обучение персонала (2 часа, выезд)', qty:1, price:8000, photo:null},
+      {name:'Сервисный контракт, 1 год', qty:1, price:36000, photo:null},
+    ],
+  }],
   stages:[
     {name:'Согласование КП и договор', term:'1–2 дня', result:'Счёт, резерв оборудования'},
     {name:'Отгрузка и доставка', term:'1–3 дня', result:'Оборудование у клиента'},
@@ -579,6 +551,25 @@ let state={
   solPhotos:[{photo:null,text:''}],
 };
 
+/* миграция старых черновиков: equip/lic/serv верхнего уровня -> variants[0] */
+function migrateState(){
+  if(!Array.isArray(state.variants)||!state.variants.length){
+    state.variants=[{
+      name:'Вариант 1',
+      equip:Array.isArray(state.equip)?state.equip:[],
+      lic:Array.isArray(state.lic)?state.lic:[],
+      serv:Array.isArray(state.serv)?state.serv:[],
+    }];
+  }
+  state.variants.forEach(v=>{
+    if(!Array.isArray(v.equip)) v.equip=[];
+    if(!Array.isArray(v.lic)) v.lic=[];
+    if(!Array.isArray(v.serv)) v.serv=[];
+    if(!v.name) v.name='Вариант';
+  });
+  delete state.equip; delete state.lic; delete state.serv;
+}
+
 function save(){ try{ localStorage.setItem(LS_KEY,JSON.stringify(state));
   const el=$('saveState'); el.textContent='✓ Черновик сохранён · '+new Date().toLocaleTimeString('ru-RU');
   el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),700);
@@ -586,6 +577,7 @@ function save(){ try{ localStorage.setItem(LS_KEY,JSON.stringify(state));
 function load(){ try{ const raw=localStorage.getItem(LS_KEY); if(!raw) return;
   const d=JSON.parse(raw); state=Object.assign(state,d);
   state.show=Object.assign({context:true,solution:true,equip:true,lic:true,serv:true,stages:true,terms:true,next:true},d.show||{});
+  migrateState();
 }catch(e){} }
 
 /* ================= ТЕКСТОВЫЕ ПОЛЯ ================= */
@@ -614,9 +606,10 @@ function renderStructure(){
   document.querySelectorAll('[data-sec-card]').forEach(c=>{
     c.style.display=state.show[c.dataset.secCard]?'':'none';
   });
-  // если бюджет-блоков нет вообще — прячем и общий итог
+  // если бюджет-блоков нет вообще — прячем и общий итог; при 2+ вариантах общий итог не нужен (свой у каждого)
   const anyBudget=state.show.equip||state.show.lic||state.show.serv;
-  document.querySelector('.grand-total').style.display=anyBudget?'':'none';
+  const gt=document.querySelector('.grand-total');
+  if(gt) gt.style.display=(anyBudget&&state.variants.length<=1)?'':'none';
   // перенумерация видимых разделов (01, 02, 03…) — без пропусков при скрытых блоках
   let secN=0;
   document.querySelectorAll('#document .sec-num').forEach(el=>{
@@ -668,61 +661,115 @@ function photoCell(row,i){
   const btn=row.photo?'':'<button class="photo-add no-print" data-i="'+i+'">+ фото</button>';
   return `<td class="photo-cell">${img}${btn}<input type="file" accept="image/*" data-photo="${i}" style="display:none"></td>`;
 }
-function renderEquip(){
-  const tb=$('bodyEquip'); tb.innerHTML='';
-  state.equip.forEach((r,i)=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML=photoCell(r,i)+`
-      <td><textarea class="ed" rows="1" data-i="${i}" data-f="name">${escH(r.name)}</textarea></td>
-      <td class="num"><input class="ed num mono" type="number" min="0" data-i="${i}" data-f="qty" value="${r.qty}" style="width:62px"></td>
-      <td class="num"><input class="ed num mono" type="number" min="0" step="100" data-i="${i}" data-f="price" value="${r.price}" style="width:110px"></td>
-      <td class="num mono" style="font-weight:700">${fmt(r.qty*r.price)}</td>
-      <td class="no-print"><button class="row-x" data-del="${i}">×</button></td>`;
-    tb.appendChild(tr);
-  });
-  bindRowInputs(tb,state.equip,renderEquip); renderTotals();
-}
-function renderLic(){
-  const tb=$('bodyLic'); tb.innerHTML='';
-  state.lic.forEach((r,i)=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML=photoCell(r,i)+`
-      <td><textarea class="ed" rows="1" data-i="${i}" data-f="name">${escH(r.name)}</textarea></td>
-      <td class="num"><input class="ed num mono" type="number" min="0" data-i="${i}" data-f="qty" value="${r.qty}" style="width:62px"></td>
-      <td class="num"><input class="ed num mono" type="number" min="0" step="100" data-i="${i}" data-f="price" value="${r.price}" style="width:110px"></td>
-      <td class="num mono" style="font-weight:700">${fmt(r.qty*r.price)}</td>
-      <td class="no-print"><button class="row-x" data-del="${i}">×</button></td>`;
-    tb.appendChild(tr);
-  });
-  bindRowInputs(tb,state.lic,renderLic); renderTotals();
-}
-function renderServ(){
-  const tb=$('bodyServ'); tb.innerHTML='';
-  state.serv.forEach((r,i)=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML=`
-      <td><textarea class="ed" rows="1" data-i="${i}" data-f="name">${escH(r.name)}</textarea></td>
-      <td class="num"><input class="ed num mono" type="number" min="0" data-i="${i}" data-f="qty" value="${r.qty}" style="width:62px"></td>
-      <td class="num"><input class="ed num mono" type="number" min="0" step="100" data-i="${i}" data-f="price" value="${r.price}" style="width:110px"></td>
-      <td class="num mono" style="font-weight:700">${fmt(r.qty*r.price)}</td>
-      <td class="no-print"><button class="row-x" data-del="${i}">×</button></td>`;
-    tb.appendChild(tr);
-  });
-  bindRowInputs(tb,state.serv,renderServ); renderTotals();
-}
+const KINDS={
+  equip:{title:'Торговое оборудование',badge:'🖨️',cls:'pink',add:'+ Добавить позицию',photo:true,total:'Итого оборудование',headName:'Позиция',defName:'Новая позиция'},
+  lic:{title:'Лицензии и ПО',badge:'🔑',cls:'blue',add:'+ Добавить позицию',photo:true,total:'Итого лицензии',headName:'Позиция',defName:'Новая лицензия'},
+  serv:{title:'Услуги',badge:'🛠️',cls:'green',add:'+ Добавить услугу',photo:false,total:'Итого услуги',headName:'Услуга',defName:'Новая услуга'},
+};
 function sumArr(a){ return a.reduce((s,r)=>s+r.qty*r.price,0); }
-function renderTotals(){
-  const e=state.show.equip?sumArr(state.equip):0;
-  const l=state.show.lic?sumArr(state.lic):0;
-  const s=state.show.serv?sumArr(state.serv):0;
-  $('totEquip').textContent=fmt(e); $('totLic').textContent=fmt(l); $('totServ').textContent=fmt(s);
-  const base=e+l+s;
-  $('grandTotal').textContent=fmt(base*1.05); // финальная цена с НДС 5%
-  $('grandBase').textContent='без НДС: '+fmt(base);
+function variantTotal(v){
+  return (state.show.equip?sumArr(v.equip):0)+(state.show.lic?sumArr(v.lic):0)+(state.show.serv?sumArr(v.serv):0);
 }
-$('addEquip').addEventListener('click',()=>{state.equip.push({name:'Новая позиция',qty:1,price:0,photo:null}); renderEquip(); save();});
-$('addLic').addEventListener('click',()=>{state.lic.push({name:'Новая лицензия',qty:1,price:0,photo:null}); renderLic(); save();});
-$('addServ').addEventListener('click',()=>{state.serv.push({name:'Новая услуга',qty:1,price:0,photo:null}); renderServ(); save();});
+
+function renderVariants(){
+  const box=$('variantsBox'); box.innerHTML='';
+  const multi=state.variants.length>1;
+  state.variants.forEach((v,vi)=>{
+    const wrap=document.createElement('div');
+    if(multi){
+      wrap.className='var-wrap';
+      const head=document.createElement('div'); head.className='var-head';
+      head.innerHTML=`<span class="v-num">Вариант ${vi+1}</span>
+        <input class="var-name" value="${esc(v.name)}" placeholder="Название варианта: «Бюджетный», «На 1С:Розница»…" maxlength="80">
+        <button class="var-del no-print" title="Удалить вариант">×</button>`;
+      head.querySelector('.var-name').addEventListener('input',(e)=>{ v.name=e.target.value; save(); });
+      head.querySelector('.var-del').addEventListener('click',()=>{
+        if(!confirm(`Удалить «${v.name||('Вариант '+(vi+1))}» со всеми позициями?`)) return;
+        state.variants.splice(vi,1); renderVariants(); save();
+      });
+      wrap.appendChild(head);
+    }
+    Object.keys(KINDS).forEach(kind=>wrap.appendChild(buildBudgetBlock(v,vi,kind)));
+    if(multi){
+      const vt=document.createElement('div'); vt.className='var-total';
+      vt.innerHTML=`<div class="vt-lbl">Итого по варианту<br><span>цены с НДС</span></div><div class="vt-val mono" data-vtotal="${vi}">0 ₽</div>`;
+      wrap.appendChild(vt);
+    }
+    box.appendChild(wrap);
+  });
+  renderStructure();
+  syncPpTarget();
+  renderTotals();
+}
+
+function buildBudgetBlock(v,vi,kind){
+  const K=KINDS[kind];
+  const block=document.createElement('div');
+  block.className='budget-block'; block.dataset.block=kind;
+  const photoTh=K.photo?'<th class="photo-cell">Фото</th>':'';
+  block.innerHTML=`
+    <div class="bb-head">
+      <div class="bb-badge ${K.cls}">${K.badge}</div>
+      <div><h3>${K.title}</h3></div>
+      <button class="btn btn-mini grey bb-hide no-print" data-hide="${kind}">убрать блок</button>
+    </div>
+    <table class="doc">
+      <thead><tr>
+        ${photoTh}<th>${K.headName}</th>
+        <th style="width:80px" class="num">Кол-во</th><th style="width:140px" class="num">Цена, ₽</th>
+        <th style="width:140px" class="num">Сумма, ₽</th><th class="no-print" style="width:34px"></th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="no-print" style="margin-top:10px"><button class="btn btn-mini" data-add="${kind}">${K.add}</button></div>
+    <div class="bb-total">${K.total} <b class="mono" data-total="${kind}-${vi}">0 ₽</b></div>`;
+  block.querySelector('[data-hide]').addEventListener('click',()=>{ state.show[kind]=false; renderStructure(); save(); });
+  block.querySelector('[data-add]').addEventListener('click',()=>{
+    v[kind].push({name:K.defName,qty:1,price:0,photo:null});
+    renderVariantRows(v,vi,kind,block.querySelector('tbody')); renderTotals(); save();
+  });
+  renderVariantRows(v,vi,kind,block.querySelector('tbody'));
+  if(kind==='serv') bindServDrop(block,vi);
+  return block;
+}
+
+function renderVariantRows(v,vi,kind,tbody){
+  const K=KINDS[kind]; const arr=v[kind];
+  tbody.innerHTML='';
+  arr.forEach((r,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=(K.photo?photoCell(r,i):'')+`
+      <td><textarea class="ed" rows="1" data-i="${i}" data-f="name">${escH(r.name)}</textarea></td>
+      <td class="num"><input class="ed num mono" type="number" min="0" data-i="${i}" data-f="qty" value="${r.qty}" style="width:62px"></td>
+      <td class="num"><input class="ed num mono" type="number" min="0" step="100" data-i="${i}" data-f="price" value="${r.price}" style="width:110px"></td>
+      <td class="num mono" style="font-weight:700">${fmt(r.qty*r.price)}</td>
+      <td class="no-print"><button class="row-x" data-del="${i}">×</button></td>`;
+    tbody.appendChild(tr);
+  });
+  bindRowInputs(tbody,arr,()=>{ renderVariantRows(v,vi,kind,tbody); renderTotals(); });
+}
+
+function renderTotals(){
+  const multi=state.variants.length>1;
+  state.variants.forEach((v,vi)=>{
+    Object.keys(KINDS).forEach(kind=>{
+      const el=document.querySelector(`[data-total="${kind}-${vi}"]`);
+      if(el) el.textContent=fmt(state.show[kind]?sumArr(v[kind]):0);
+    });
+    if(multi){
+      const vt=document.querySelector(`[data-vtotal="${vi}"]`);
+      if(vt) vt.textContent=fmt(variantTotal(v));
+    }
+  });
+  if(!multi) $('grandTotal').textContent=fmt(variantTotal(state.variants[0]));
+}
+
+$('addVariant').addEventListener('click',()=>{
+  state.variants.push({name:'',equip:[],lic:[],serv:[]});
+  renderVariants(); save();
+  const names=document.querySelectorAll('.var-name');
+  if(names.length) names[names.length-1].focus();
+});
 
 /* ================= ПАНЕЛЬ ПРАЙСА ================= */
 /* n — наименование, p — цена с НДС 5%, u — 'час' если почасовая, from — 'от' (минимальная цена) */
@@ -882,17 +929,51 @@ function renderPricePanel(filter){
   if(!shown) box.innerHTML='<div class="pp-empty">Ничего не найдено.<br>Попробуйте изменить запрос.</div>';
 }
 
-function addFromPrice(it){
-  if(!state.show.serv){ state.show.serv=true; renderStructure(); }
-  state.serv.push({name:it.n,qty:1,price:it.p,photo:null});
-  renderServ(); save();
-  const rows=$('bodyServ').querySelectorAll('tr');
-  const last=rows[rows.length-1];
-  if(last){
-    last.classList.add('row-flash');
-    last.scrollIntoView({behavior:'smooth',block:'center'});
-    setTimeout(()=>last.classList.remove('row-flash'),1700);
+function syncPpTarget(){
+  const sel=$('ppTarget'); if(!sel) return;
+  const multi=state.variants.length>1;
+  sel.style.display=multi?'':'none';
+  if(!multi) return;
+  const cur=+sel.value||0;
+  sel.innerHTML=state.variants.map((v,i)=>
+    `<option value="${i}">Добавлять в: Вариант ${i+1}${v.name?' — '+escH(v.name):''}</option>`).join('');
+  sel.value=Math.min(cur,state.variants.length-1);
+}
+
+function addFromPrice(it,vi){
+  if(!state.show.serv){ state.show.serv=true; }
+  if(vi===undefined) vi=Math.min(+$('ppTarget').value||0,state.variants.length-1);
+  vi=Math.max(0,Math.min(vi,state.variants.length-1));
+  state.variants[vi].serv.push({name:it.n,qty:1,price:it.p,photo:null});
+  renderVariants(); save();
+  const blocks=document.querySelectorAll('#variantsBox [data-block="serv"]');
+  const block=blocks[vi];
+  if(block){
+    const rows=block.querySelectorAll('tbody tr');
+    const last=rows[rows.length-1];
+    if(last){
+      last.classList.add('row-flash');
+      last.scrollIntoView({behavior:'smooth',block:'center'});
+      setTimeout(()=>last.classList.remove('row-flash'),1700);
+    }
   }
+}
+
+/* drop-зона — таблица «Услуги» конкретного варианта */
+function bindServDrop(zone,vi){
+  zone.addEventListener('dragover',(e)=>{
+    if(e.dataTransfer&&[...e.dataTransfer.types].includes('text/plain')){
+      e.preventDefault(); e.dataTransfer.dropEffect='copy'; zone.classList.add('drop-target');
+    }
+  });
+  zone.addEventListener('dragleave',(e)=>{ if(!zone.contains(e.relatedTarget)) zone.classList.remove('drop-target'); });
+  zone.addEventListener('drop',(e)=>{
+    e.preventDefault(); zone.classList.remove('drop-target');
+    try{
+      const it=JSON.parse(e.dataTransfer.getData('text/plain'));
+      if(it&&it.n&&typeof it.p==='number') addFromPrice(it,vi);
+    }catch(err){}
+  });
 }
 
 function togglePricePanel(open){
@@ -911,25 +992,6 @@ $('priceSearch').addEventListener('input',()=>{
   clearTimeout(priceSearchT);
   priceSearchT=setTimeout(()=>renderPricePanel($('priceSearch').value),150);
 });
-
-/* drop-зона — таблица «Услуги» */
-(function(){
-  const zone=document.querySelector('[data-block="serv"]');
-  if(!zone) return;
-  zone.addEventListener('dragover',(e)=>{
-    if(e.dataTransfer&&[...e.dataTransfer.types].includes('text/plain')){
-      e.preventDefault(); e.dataTransfer.dropEffect='copy'; zone.classList.add('drop-target');
-    }
-  });
-  zone.addEventListener('dragleave',(e)=>{ if(!zone.contains(e.relatedTarget)) zone.classList.remove('drop-target'); });
-  zone.addEventListener('drop',(e)=>{
-    e.preventDefault(); zone.classList.remove('drop-target');
-    try{
-      const it=JSON.parse(e.dataTransfer.getData('text/plain'));
-      if(it&&it.n&&typeof it.p==='number') addFromPrice(it);
-    }catch(err){}
-  });
-})();
 
 /* ================= ЭТАПЫ ================= */
 function renderStages(){
@@ -1038,9 +1100,9 @@ $('solxAddText').addEventListener('click',()=>{
 
 /* ================= ИНИЦИАЛИЗАЦИЯ ================= */
 if(!new URLSearchParams(location.search).get('id')) load(); // с серверным id черновик из localStorage не применяем
+migrateState();
 bindTextFields();
-renderStructure();
-renderEquip(); renderLic(); renderServ();
+renderVariants();
 renderStages();
 renderPhoto();
 renderSolution();
@@ -1132,10 +1194,10 @@ $('btnReset').addEventListener('click',()=>{
       if(d.payload&&Object.keys(d.payload).length){
         state=Object.assign(state,d.payload);
         state.show=Object.assign({context:true,solution:true,equip:true,lic:true,serv:true,stages:true,terms:true,next:true},d.payload.show||{});
+        migrateState();
         // перерисовываем всё с серверным состоянием
         bindTextFields();
-        renderStructure();
-        renderEquip(); renderLic(); renderServ();
+        renderVariants();
         renderStages();
         renderPhoto();
         renderSolution();
