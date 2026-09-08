@@ -6,57 +6,57 @@
 <title>Дашборд — Воронка продаж | Промышленная маркировка</title>
 <style>
 :root{
-  --bg:#f1f5f9; --bg-card:#fff; --bg-sidebar:#1e293b; --bg-sidebar-hover:#334155;
-  --text:#1e293b; --text-muted:#64748b; --text-light:#cbd5e1; --text-on-dark:#e2e8f0;
-  --border:#e2e8f0; --border-dark:#475569;
-  --primary:#3b82f6; --primary-light:#dbeafe;
-  --success:#10b981; --success-light:#d1fae5;
-  --warning:#f59e0b; --warning-light:#fef3c7;
-  --danger:#ef4444; --danger-light:#fee2e2;
-  --purple:#8b5cf6; --purple-light:#ede9fe;
-  --radius:12px; --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
-  --shadow-lg:0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px -2px rgba(0,0,0,.05);
+  --accent:#E50071; --accent-dark:#b30059; --accent-light:#fde7f3;
+  --bg:#EBEBEB; --bg-card:#FFFFFF;
+  --sidebar-bg:#FFFFFF; --sidebar-hover:#F5F5F5;
+  --text:#000000; --text-muted:#666666; --text-faint:#999999;
+  --border:#E2E2E2; --border-dark:#D0D0D0;
+  --success:#0A9D6B; --success-light:#E6F7F0;
+  --warning:#E08A00; --warning-light:#FFF4E0;
+  --danger:#D91E2E; --danger-light:#FBE9EB;
+  --purple:#7C3AED; --purple-light:#F1EBFD;
+  --radius:10px; --shadow:0 1px 3px rgba(0,0,0,.06);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+body{font-family:'Inter','Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;letter-spacing:-.1px;-webkit-font-smoothing:antialiased}
 .app{display:flex;min-height:100vh}
 
-/* Sidebar */
-.sidebar{width:240px;background:var(--bg-sidebar);color:var(--text-on-dark);display:flex;flex-direction:column;position:fixed;height:100vh;overflow-y:auto;z-index:100;flex-shrink:0}
-.sidebar-logo{padding:20px 20px 16px;font-size:15px;font-weight:700;border-bottom:1px solid var(--border-dark);line-height:1.3}
-.sidebar-logo span{color:var(--primary)}
+/* Sidebar — белая, акцент малиновым */
+.sidebar{width:240px;background:var(--sidebar-bg);color:var(--text);display:flex;flex-direction:column;position:fixed;height:100vh;overflow-y:auto;z-index:100;flex-shrink:0;border-right:1px solid var(--border)}
+.sidebar-logo{padding:24px 24px 18px;font-size:15px;font-weight:700;border-bottom:1px solid var(--border);line-height:1.4}
+.sidebar-logo span{color:var(--accent);font-weight:700}
 .sidebar-nav{padding:12px 0;flex:1}
-.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;cursor:pointer;color:var(--text-light);font-size:13px;transition:.15s;border-left:3px solid transparent}
-.nav-item:hover{background:var(--bg-sidebar-hover);color:#fff}
-.nav-item.active{background:var(--bg-sidebar-hover);color:#fff;border-left-color:var(--primary)}
+.nav-item{display:flex;align-items:center;gap:10px;padding:11px 24px;cursor:pointer;color:var(--text-muted);font-size:13px;font-weight:500;transition:.15s;border-left:3px solid transparent}
+.nav-item:hover{background:var(--sidebar-hover);color:var(--text)}
+.nav-item.active{background:var(--sidebar-hover);color:var(--text);border-left-color:var(--accent);font-weight:600}
 .nav-icon{width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
-.sidebar-footer{padding:16px 20px;border-top:1px solid var(--border-dark);font-size:11px;color:var(--text-muted)}
+.sidebar-footer{padding:16px 24px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted)}
 .sidebar-footer .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
 
 /* Main */
 .main{flex:1;margin-left:240px;display:flex;flex-direction:column;min-height:100vh}
-.topbar{background:var(--bg-card);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
-.topbar-title{font-size:18px;font-weight:700}
+.topbar{background:var(--bg-card);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.topbar-title{font-size:20px;font-weight:700;letter-spacing:-.3px}
 .topbar-actions{display:flex;gap:10px;align-items:center}
 .topbar-info{font-size:12px;color:var(--text-muted);margin-right:12px}
-.content{padding:24px;flex:1}
+.content{padding:28px 32px;flex:1;max-width:1600px;margin:0 auto;width:100%}
 .view{display:none}
 .view.active{display:block}
 
-/* Cards */
-.card{background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:20px}
-.card-title{font-size:15px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
-.card-title .badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--primary-light);color:var(--primary)}
+/* Cards — белые, лёгкая тень */
+.card{background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;margin-bottom:20px;border:1px solid var(--border)}
+.card-title{font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;letter-spacing:-.2px}
+.card-title .badge{font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;background:var(--accent-light);color:var(--accent)}
 
 /* KPI Grid */
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:20px}
-.kpi-card{background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;border-left:4px solid var(--primary)}
-.kpi-card.success{border-left-color:var(--success)}
-.kpi-card.warning{border-left-color:var(--warning)}
-.kpi-card.danger{border-left-color:var(--danger)}
-.kpi-card.purple{border-left-color:var(--purple)}
-.kpi-label{font-size:12px;color:var(--text-muted);font-weight:500;margin-bottom:6px}
-.kpi-value{font-size:24px;font-weight:700;letter-spacing:-.5px}
+.kpi-card{background:var(--bg-card);border-radius:var(--radius);border:1px solid var(--border);padding:20px 22px;border-top:3px solid var(--accent)}
+.kpi-card.success{border-top-color:var(--success)}
+.kpi-card.warning{border-top-color:var(--warning)}
+.kpi-card.danger{border-top-color:var(--danger)}
+.kpi-card.purple{border-top-color:var(--purple)}
+.kpi-label{font-size:12px;color:var(--text-muted);font-weight:500;margin-bottom:8px}
+.kpi-value{font-size:26px;font-weight:700;letter-spacing:-.5px}
 .kpi-sub{font-size:12px;color:var(--text-muted);margin-top:4px}
 .kpi-trend{font-size:12px;font-weight:600;margin-top:4px;display:inline-flex;align-items:center;gap:4px}
 .kpi-trend.up{color:var(--success)}
@@ -104,25 +104,25 @@ tr:hover{background:var(--bg)}
 .alert.danger .alert-icon{background:var(--danger);color:#fff}
 .alert.warning{background:var(--warning-light)}
 .alert.warning .alert-icon{background:var(--warning);color:#fff}
-.alert.info{background:var(--primary-light)}
-.alert.info .alert-icon{background:var(--primary);color:#fff}
+.alert.info{background:var(--accent-light)}
+.alert.info .alert-icon{background:var(--accent);color:#fff}
 .alert.success{background:var(--success-light)}
 .alert.success .alert-icon{background:var(--success);color:#fff}
 
 /* Buttons */
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.15s;text-decoration:none}
-.btn-primary{background:var(--primary);color:#fff}
-.btn-primary:hover{background:#2563eb}
-.btn-secondary{background:var(--bg);color:var(--text);border:1px solid var(--border)}
-.btn-secondary:hover{background:var(--border)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.15s;text-decoration:none;letter-spacing:-.1px}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-dark)}
+.btn-secondary{background:var(--bg-card);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--bg);border-color:var(--border-dark)}
 .btn-danger{background:var(--danger);color:#fff}
-.btn-danger:hover{background:#dc2626}
-.btn-sm{padding:4px 10px;font-size:12px}
+.btn-danger:hover{background:#c00818}
+.btn-sm{padding:5px 10px;font-size:12px}
 .btn-icon{padding:6px 8px}
 
 /* Inputs */
-input,select{font-family:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;outline:none;transition:.15s}
-input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
+input,select{font-family:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;outline:none;transition:.15s;background:var(--bg-card)}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light)}
 input[type="file"]{display:none}
 .input-money{width:130px;text-align:right}
 .input-month{width:160px}
@@ -132,13 +132,13 @@ input[type="file"]{display:none}
 /* Editable cells */
 .editable{cursor:pointer;padding:4px 8px;border-radius:4px;border:1px solid transparent;transition:.15s}
 .editable:hover{border-color:var(--border);background:var(--bg)}
-.editing{padding:0;border:1px solid var(--primary);border-radius:4px}
+.editing{padding:0;border:1px solid var(--accent);border-radius:4px}
 
-/* Summary box */
-.summary-box{background:linear-gradient(135deg,#1e293b,#334155);color:#e2e8f0;border-radius:var(--radius);padding:20px 24px;margin-bottom:20px}
-.summary-box-title{font-size:12px;color:var(--text-light);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
-.summary-box-text{font-size:14px;line-height:1.7}
-.summary-box-text strong{color:#fff}
+/* Summary box — white with accent border, no gradient */
+.summary-box{background:var(--bg-card);color:var(--text);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:var(--radius);padding:22px 26px;margin-bottom:20px}
+.summary-box-title{font-size:11px;color:var(--accent);margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.summary-box-text{font-size:14px;line-height:1.7;color:var(--text-muted)}
+.summary-box-text strong{color:var(--text)}
 
 /* Grid */
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
@@ -160,14 +160,14 @@ input[type="file"]{display:none}
 
 /* Upload zone */
 .upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:40px;text-align:center;cursor:pointer;transition:.15s;background:var(--bg-card)}
-.upload-zone:hover{border-color:var(--primary);background:var(--primary-light)}
-.upload-zone.dragover{border-color:var(--primary);background:var(--primary-light)}
+.upload-zone:hover{border-color:var(--accent);background:var(--accent-light)}
+.upload-zone.dragover{border-color:var(--accent);background:var(--accent-light)}
 
 /* Change list */
 .change-item{display:flex;gap:10px;padding:10px 14px;border-radius:8px;margin-bottom:6px;font-size:13px;align-items:center}
 .change-item.up{background:var(--success-light);border-left:3px solid var(--success)}
 .change-item.down{background:var(--danger-light);border-left:3px solid var(--danger)}
-.change-item.new{background:var(--primary-light);border-left:3px solid var(--primary)}
+.change-item.new{background:var(--accent-light);border-left:3px solid var(--accent)}
 .change-item.lost{background:var(--bg);border-left:3px solid var(--text-muted)}
 .change-item.sum{background:var(--warning-light);border-left:3px solid var(--warning)}
 .change-arrow{font-size:16px;font-weight:700}
@@ -185,7 +185,7 @@ input[type="file"]{display:none}
 .sub-tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--border)}
 .sub-tab{padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:.15s}
 .sub-tab:hover{color:var(--text)}
-.sub-tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.sub-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 
 /* Misc */
 .muted{color:var(--text-muted)}
@@ -207,7 +207,7 @@ input[type="file"]{display:none}
 .pill.green{background:var(--success-light);color:var(--success)}
 .pill.red{background:var(--danger-light);color:var(--danger)}
 .pill.yellow{background:var(--warning-light);color:var(--warning)}
-.pill.blue{background:var(--primary-light);color:var(--primary)}
+.pill.blue{background:var(--accent-light);color:var(--accent)}
 .pill.gray{background:var(--bg);color:var(--text-muted)}
 .divider{height:1px;background:var(--border);margin:16px 0}
 
@@ -217,21 +217,20 @@ input[type="file"]{display:none}
 
 /* Tooltip */
 .tooltip{position:relative;display:inline-block}
-.tooltip:hover::after{content:attr(data-tip);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--bg-sidebar);color:#fff;padding:4px 10px;border-radius:4px;font-size:11px;white-space:nowrap;z-index:200;margin-bottom:4px}
+.tooltip:hover::after{content:attr(data-tip);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:4px 10px;border-radius:4px;font-size:11px;white-space:nowrap;z-index:200;margin-bottom:4px}
 
 /* Scrollbar */
 ::-webkit-scrollbar{width:8px;height:8px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
-::-webkit-scrollbar-thumb:hover{background:#94a3b8}
-.sidebar ::-webkit-scrollbar-thumb{background:#475569}
+::-webkit-scrollbar-thumb{background:#cccccc;border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#999999}
 </style>
 </head>
 <body>
 <div class="app">
   <!-- SIDEBAR -->
   <aside class="sidebar">
-    <div class="sidebar-logo">Воронка продаж<br><span>Промышленная маркировка</span></div>
+    <div class="sidebar-logo">первый.<span>Бит</span><br><span style="font-size:12px;color:var(--text-muted);font-weight:500">Воронка продаж · Промышленная маркировка</span></div>
     <nav class="sidebar-nav" id="nav">
       <div class="nav-item active" data-view="dashboard"><span class="nav-icon">&#9632;</span> Дашборд</div>
       <div class="nav-item" data-view="funnel"><span class="nav-icon">&#9650;</span> Воронка</div>
@@ -241,6 +240,7 @@ input[type="file"]{display:none}
       <div class="nav-item" data-view="sources"><span class="nav-icon">&#9679;</span> Источники</div>
       <div class="nav-item" data-view="recommendations"><span class="nav-icon">!</span> Рекомендации</div>
       <div class="nav-item" data-view="changes"><span class="nav-icon">&#8635;</span> Изменения</div>
+      <div class="nav-item" data-view="history"><span class="nav-icon">&#128197;</span> Архив</div>
       <div class="nav-item" data-view="settings"><span class="nav-icon">&#9881;</span> Настройки</div>
     </nav>
     <div class="sidebar-footer" id="sidebarFooter">
@@ -259,6 +259,7 @@ input[type="file"]{display:none}
         <button class="btn btn-secondary btn-sm" id="btnExport" onclick="exportState()" title="Сохранить данные в файл">Экспорт</button>
         <label class="btn btn-secondary btn-sm" for="importFile" title="Загрузить сохранённые данные">Импорт</label>
         <input type="file" id="importFile" accept=".json">
+        <a class="btn btn-secondary btn-sm" href="https://forms.gle/CQexfY6dbKWHPHuh7" target="_blank" rel="noopener" title="Оставить отзыв или предложение" style="border-color:var(--accent);color:var(--accent)">💬 Обратная связь</a>
       </div>
     </div>
     <div class="content">
@@ -315,6 +316,23 @@ input[type="file"]{display:none}
         <div class="card">
           <div class="card-title">Конверсия между стадиями</div>
           <div id="conversionTable"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">
+            Конверсия «Лид → Сделка» по периодам
+            <span class="flex gap-4" style="margin-left:auto">
+              <select id="convPeriodType" onchange="renderLeadDealConversion()">
+                <option value="month">По месяцам</option>
+                <option value="quarter">По кварталам</option>
+              </select>
+              <select id="convTarget" onchange="renderLeadDealConversion()">
+                <option value="deal">До Договора</option>
+                <option value="won">До Запуска (оплачено)</option>
+              </select>
+            </span>
+          </div>
+          <p class="small muted mb-12">Сделки группируются по дате создания лида. <b>До Договора</b> — сделки, достигшие стадии «Договор» и далее. <b>До Запуска</b> — достигшие стадии «Запуск» и далее (реально оплаченные).</p>
+          <div id="leadDealConversion"></div>
         </div>
         <div class="card">
           <div class="card-title">Сделки по стадиям <span class="badge" id="funnelDealsBadge"></span></div>
@@ -439,6 +457,28 @@ input[type="file"]{display:none}
             <div class="sub-tab" data-ctab="lost" onclick="switchChangeTab('lost')">Отвалы и потери</div>
           </div>
           <div id="changeContent"></div>
+        </div>
+      </section>
+
+      <!-- HISTORY VIEW -->
+      <section id="view-history" class="view">
+        <div class="card">
+          <div class="card-title">Архив состояния воронки <span class="badge" id="historyBadge"></span></div>
+          <p class="small muted mb-12">Каждый раз при загрузке CSV дашборд сохраняет снимок воронки в архив. Выберите два снимка (начальный и конечный), чтобы увидеть, что изменилось между ними — например, за неделю.</p>
+          <div class="flex gap-12 mb-12 flex-wrap">
+            <span class="small bold">Снимок «от»:</span>
+            <select id="histFrom" onchange="renderHistoryDiff()"></select>
+            <span class="small bold">Снимок «до»:</span>
+            <select id="histTo" onchange="renderHistoryDiff()"></select>
+            <button class="btn btn-secondary btn-sm" onclick="renderHistory()">Обновить список</button>
+          </div>
+          <div id="historyDiff"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Все снимки архива</div>
+          <div class="table-wrap">
+            <table id="historyTable"></table>
+          </div>
         </div>
       </section>
 
@@ -661,6 +701,7 @@ function normalizeCategory(rawCat){
 let State = {
   deals: [],
   previousDeals: [],
+  history: [],
   calendarOverrides: {},
   salesPlan: { monthly:{}, quarterly:{}, annual:{} },
   categoryDeadlines: {},
@@ -691,7 +732,7 @@ function resetAllData(){
   if(!confirm('Сбросить все данные? Это удалит сделки, настройки, план и редакции платёжного календаря.')) return;
   localStorage.removeItem(STORAGE_KEY);
   State = {
-    deals:[], previousDeals:[], calendarOverrides:{},
+    deals:[], previousDeals:[], history:[], calendarOverrides:{},
     salesPlan:{monthly:{},quarterly:{},annual:{}},
     categoryDeadlines:{}, categoryOverrides:{}, stageProbs:{...PAYMENT_PROBS}, implMonths:2,
     lastUpdate:null, prevUpdate:null,
@@ -1032,6 +1073,37 @@ function getSources(){
   return [...new Set(State.deals.map(d=>d.source).filter(s=>s))].sort();
 }
 
+function getLeadDealConversionData(periodType, target){
+  // Target stage index: deal = Договор (5), won = Запуск (6)
+  const targetIdx = target === 'won' ? 6 : 5;
+  const groups = {};
+  State.deals.forEach(d=>{
+    // Use creation date as cohort key
+    let key = '';
+    if(periodType === 'quarter'){
+      const dt = d.createdDate ? new Date(d.createdDate) : null;
+      if(!dt) return;
+      const q = Math.ceil((dt.getMonth()+1)/3);
+      key = dt.getFullYear() + '-Q' + q;
+    } else {
+      const dt = d.createdDate ? new Date(d.createdDate) : null;
+      if(!dt) return;
+      key = dt.toISOString().substring(0,7);
+    }
+    if(!groups[key]) groups[key] = { period:key, total:0, reached:0, won:0, lost:0, inPipeline:0, amount:0, reachedSum:0 };
+    const g = groups[key];
+    g.total++;
+    g.amount += d.amount||0;
+    const idx = STAGE_INDEX[d.stage];
+    if(idx >= targetIdx){ g.reached++; g.reachedSum += d.amount||0; }
+    if(idx >= 6){ g.won++; }
+    if(idx === 10 || idx === 11){ g.lost++; }
+    if(idx >= 0 && idx < targetIdx){ g.inPipeline++; }
+  });
+  // Sort periods ascending
+  return Object.values(groups).sort((a,b)=>a.period.localeCompare(b.period));
+}
+
 function getCategories(){
   return [...new Set(State.deals.map(d=>d.category).filter(c=>c))].sort();
 }
@@ -1247,8 +1319,10 @@ function getAutoSummary(){
 // CHANGE TRACKING
 // ============================================================
 function getChanges(){
-  const prev = State.previousDeals;
-  const curr = State.deals;
+  return computeChanges(State.previousDeals, State.deals);
+}
+
+function computeChanges(prev, curr){
   const prevMap = {}; prev.forEach(d=>prevMap[d.id]=d);
   const currMap = {}; curr.forEach(d=>currMap[d.id]=d);
 
@@ -1263,12 +1337,18 @@ function getChanges(){
     if(p.stage !== d.stage){
       const pi = getStageIndex(p.stage);
       const ci = getStageIndex(d.stage);
-      if(ci > pi) stageUp.push({ deal:d, from:p.stage, to:d.stage, prevDeal:p });
-      else stageDown.push({ deal:d, from:p.stage, to:d.stage, prevDeal:p });
-      
-      // Check if moved to Саратов/Отвал
-      if(d.stage === 'Саратов' || d.stage === 'Отвал'){
+      const isLost = d.stage === 'Саратов' || d.stage === 'Отвал';
+      const isFromLost = p.stage === 'Саратов' || p.stage === 'Отвал';
+      if(isLost){
+        // Перемещение в Саратов/Отвал — только как потеря, не как движение вперёд
         lostDeals.push({ deal:d, from:p.stage, to:d.stage, prevDeal:p });
+      } else if(isFromLost){
+        // Возврат из Саратов/Отвал в активную стадию — реанимация, считаем движением вверх
+        stageUp.push({ deal:d, from:p.stage, to:d.stage, prevDeal:p });
+      } else if(ci > pi){
+        stageUp.push({ deal:d, from:p.stage, to:d.stage, prevDeal:p });
+      } else {
+        stageDown.push({ deal:d, from:p.stage, to:d.stage, prevDeal:p });
       }
     }
     if(p.amount !== d.amount){
@@ -1389,7 +1469,7 @@ function renderDashboard(){
     forecastHtml += `
       <div class="month-col">
         <div class="month-value">${v > 0 ? fmtRub(v) : '—'}</div>
-        <div class="month-bar-fill" style="height:${h}%;background:${v > 0 ? 'var(--primary)' : 'var(--border)'}" title="${formatMonth(m)}: ${fmtRubFull(v)}"></div>
+        <div class="month-bar-fill" style="height:${h}%;background:${v > 0 ? 'var(--accent)' : 'var(--border)'}" title="${formatMonth(m)}: ${fmtRubFull(v)}"></div>
         <div class="month-label">${formatMonth(m)}</div>
         <div class="small muted">${forecast[m]?.count || 0} сделок</div>
       </div>
@@ -1456,7 +1536,7 @@ function renderDashboard(){
         `).join('')}
       </tbody>
     </table>
-    <p class="small mt-12"><a href="#" onclick="navigate('fridge');return false" style="color:var(--primary)">Подробный анализ холодильника &rarr;</a></p>
+    <p class="small mt-12"><a href="#" onclick="navigate('fridge');return false" style="color:var(--accent)">Подробный анализ холодильника &rarr;</a></p>
   `;
 }
 
@@ -1538,6 +1618,7 @@ function renderFunnel(){
     funnelActiveStage = first ? first.id : null;
   }
   renderFunnelDeals(filter);
+  renderLeadDealConversion();
 }
 
 function setFunnelStage(stageId){
@@ -1579,6 +1660,62 @@ function renderFunnelDeals(filter){
     </table>
   ` : '<p class="muted center">Нет сделок на этой стадии</p>';
   document.getElementById('funnelDealsTable').innerHTML = html;
+}
+
+function renderLeadDealConversion(){
+  const periodType = document.getElementById('convPeriodType').value;
+  const target = document.getElementById('convTarget').value;
+  const targetLabel = target === 'won' ? 'Запуск (оплачено)' : 'Договор';
+  const data = getLeadDealConversionData(periodType, target);
+  const el = document.getElementById('leadDealConversion');
+  if(!data.length){
+    el.innerHTML = '<p class="muted center">Нет данных. Убедитесь, что у сделок заполнена дата создания.</p>';
+    return;
+  }
+  // Total for last 12 months/quarters (for recent rate)
+  const convData = data.map(g=>{
+    const conv = g.total > 0 ? (g.reached / g.total * 100) : 0;
+    const wonConv = g.total > 0 ? (g.won / g.total * 100) : 0;
+    const lostPct = g.total > 0 ? (g.lost / g.total * 100) : 0;
+    return { ...g, conv, wonConv, lostPct };
+  });
+  // Color for conversion
+
+  let html = '<table>';
+  html += '<thead><tr><th>Период</th><th>Лидов</th><th>Сумма, ₽</th><th>До ' + targetLabel + '</th><th>Из них запущено</th><th>Потеряно</th><th>В работе</th><th>Конверсия в ' + (target==='won'?'запуск':'сделку') + '</th><th>Визуально</th></tr></thead><tbody>';
+
+  convData.forEach((c)=>{
+    const reachedLabel = c.reached;
+    const sumLabel = fmtRub(c.reachedSum);
+    const convPct = c.conv;
+    const rowColor = convColor(c.conv);
+    const lostCls = c.lostPct >= 40 ? 'bad' : c.lostPct >= 20 ? 'mid' : 'good';
+    html += '<tr>'
+      + '<td class="bold">' + formatPeriod(c.period, periodType) + '</td>'
+      + '<td>' + c.total + '</td>'
+      + '<td class="right muted">' + fmtRub(c.amount) + '</td>'
+      + '<td class="bold" style="color:var(--success)">' + c.reached + '</td>'
+      + '<td>' + c.won + '</td>'
+      + '<td class="bold" style="color:var(--danger)">' + c.lost + '</td>'
+      + '<td>' + c.inPipeline + '</td>'
+      + '<td><span class="funnel-conversion ' + (c.conv >= 50 ? 'good' : c.conv >= 25 ? 'mid' : 'bad') + '">' + fmtPct(c.conv) + '</span></td>'
+      + '<td style="width:160px"><div style="width:150px;height:10px;background:var(--bg);border-radius:5px;overflow:hidden;position:relative"><div style="height:100%;width:' + c.conv + '%;background:' + convColor(c.conv) + ';border-radius:5px"></div><div style="position:absolute;left:0;top:0;bottom:0;width:100%;border-left:' + c.lostPct + '%;opacity:0"></div></div><div class="small muted">потеряно ' + fmtPct(c.lostPct) + '</div></td>'
+      + '</tr>';
+  });
+  html += '</tbody></table>';
+  html += '<p class="small muted mt-12">Внимание: лиды, созданные в последних периодах, ещё находятся в воронке, поэтому их конверсия будет занижена. Наибольшую точность дают завершённые периоды. Конверсия считается от всех лидов периода, включая ещё находящиеся в работе.</p>';
+  el.innerHTML = html;
+}
+
+function formatPeriod(period, type){
+  if(type === 'quarter') return period.replace('-Q', ' кв ');
+  return formatMonth(period);
+}
+
+function convColor(p){
+  if(p >= 50) return '#10b981';
+  if(p >= 25) return '#f59e0b';
+  return '#ef4444';
 }
 
 // ============================================================
@@ -1667,7 +1804,7 @@ function renderCalendar(){
     }
     fhtml += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;cursor:default" '
       + 'onmouseenter="showMonthDetail(\'' + m + '\')" onmouseleave="hideMonthDetail()">'
-      + '<div style="font-size:11px;font-weight:700;margin-bottom:2px;color:var(--primary)">' + (w > 0 ? fmtRub(w) : '') + '</div>'
+      + '<div style="font-size:11px;font-weight:700;margin-bottom:2px;color:var(--accent)">' + (w > 0 ? fmtRub(w) : '') + '</div>'
       + '<div style="width:100%;height:240px;display:flex;flex-direction:column-reverse;border-radius:4px 4px 0 0;overflow:hidden;position:relative">'
       + (totalH > 0 ? dealSegments : '<div style="width:100%;height:2px;background:var(--border)"></div>')
       + '</div>'
@@ -1690,7 +1827,7 @@ function renderCalendar(){
     + '</div>';
   
   // Deal legend for all visible months
-  fhtml += '<div class="mt-12"><details><summary style="font-size:12px;font-weight:600;cursor:pointer;color:var(--primary)">Показать всех клиентов по месяцам</summary><div class="mt-12">';
+  fhtml += '<div class="mt-12"><details><summary style="font-size:12px;font-weight:600;cursor:pointer;color:var(--accent)">Показать всех клиентов по месяцам</summary><div class="mt-12">';
   months6.forEach(m=>{
     const mData = forecast[m];
     if(!mData || !mData.deals.length) return;
@@ -1878,7 +2015,7 @@ function renderPlan(){
             const fctPct = plan > 0 ? Math.round((actual+forecast)/plan*100) : 0;
             const isCurrent = mk === `${y}-${String(m+1).padStart(2,'0')}`;
             return `
-              <tr ${isCurrent ? 'style="background:var(--primary-light)"' : ''}>
+              <tr ${isCurrent ? 'style="background:var(--accent-light)"' : ''}>
                 <td class="bold">${formatMonth(mk)}${isCurrent ? ' &larr;текущ.' : ''}</td>
                 <td><input type="number" class="input-money" value="${plan||''}" onchange="updatePlan('monthly','${mk}',this.value)" placeholder="0"></td>
                 <td class="right">${actual > 0 ? fmtRubFull(actual) : '—'}</td>
@@ -1917,7 +2054,7 @@ function renderPlan(){
             const fctPct = plan > 0 ? Math.round((actual+forecast)/plan*100) : 0;
             const isCurrent = qk === `${y}-Q${Math.ceil((m+1)/3)}`;
             return `
-              <tr ${isCurrent ? 'style="background:var(--primary-light)"' : ''}>
+              <tr ${isCurrent ? 'style="background:var(--accent-light)"' : ''}>
                 <td class="bold">${formatQuarter(qk)}${isCurrent ? ' &larr;текущ.' : ''}</td>
                 <td><input type="number" class="input-money" value="${plan||''}" onchange="updatePlan('quarterly','${qk}',this.value)" placeholder="0"></td>
                 <td class="right">${actual > 0 ? fmtRubFull(actual) : '—'}</td>
@@ -1951,7 +2088,7 @@ function renderPlan(){
             const fctPct = plan > 0 ? Math.round((actual+forecast)/plan*100) : 0;
             const isCurrent = yk === y;
             return `
-              <tr ${isCurrent ? 'style="background:var(--primary-light)"' : ''}>
+              <tr ${isCurrent ? 'style="background:var(--accent-light)"' : ''}>
                 <td class="bold">${yk}${isCurrent ? ' &larr;текущ.' : ''}</td>
                 <td><input type="number" class="input-money" value="${plan||''}" onchange="updatePlan('annual','${yk}',this.value)" placeholder="0"></td>
                 <td class="right">${actual > 0 ? fmtRubFull(actual) : '—'}</td>
@@ -2070,7 +2207,7 @@ function renderSources(){
               <div class="bar-row">
                 <div class="bar-label">${s.source}</div>
                 <div class="bar-track">
-                  <div class="bar-fill" style="width:${Math.max(100 - s.avgDays, 5)}%;background:var(--primary)">${Math.round(s.avgDays)} дн.</div>
+                  <div class="bar-fill" style="width:${Math.max(100 - s.avgDays, 5)}%;background:var(--accent)">${Math.round(s.avgDays)} дн.</div>
                 </div>
               </div>
             `).join('')}
@@ -2242,6 +2379,121 @@ function changeItemHtml(type, deal, from, to){
       ${deal.responsible ? `<span class="small muted">• ${deal.responsible}</span>` : ''}
     </div>
   `;
+}
+
+// ============================================================
+// RENDER: HISTORY (ARCHIVE)
+// ============================================================
+function formatSnapDate(iso){
+  const d = new Date(iso);
+  return d.toLocaleString('ru-RU', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
+}
+
+function getSnapshotOptions(){
+  const opts = [];
+  if(State.deals.length){
+    opts.push({ id:'current', label:'Текущие данные (' + formatSnapDate(State.lastUpdate) + ')', deals: State.deals });
+  }
+  State.history.slice().reverse().forEach(s=>{
+    opts.push({ id: s.id, label: formatSnapDate(s.date) + ' (' + s.deals.length + ' сделок)', deals: s.deals });
+  });
+  return opts;
+}
+
+function renderHistory(){
+  const opts = getSnapshotOptions();
+  const fromEl = document.getElementById('histFrom');
+  const toEl = document.getElementById('histTo');
+  const prevFrom = fromEl.value;
+  const prevTo = toEl.value;
+
+  fromEl.innerHTML = opts.map(o=>'<option value="' + o.id + '">' + o.label + '</option>').join('');
+  toEl.innerHTML = opts.map(o=>'<option value="' + o.id + '">' + o.label + '</option>').join('');
+  // Restore selection
+  if(prevFrom && opts.find(o=>o.id===prevFrom)) fromEl.value = prevFrom;
+  if(prevTo && opts.find(o=>o.id===prevTo)) toEl.value = prevTo;
+
+  document.getElementById('historyBadge').textContent = (State.history.length + (State.deals.length ? 1 : 0)) + ' снимков';
+
+  // History table (newest first)
+  const rows = State.history.slice().reverse().map(s=>{
+    const active = s.deals.filter(d=>STAGE_INDEX[d.stage] >= 0 && STAGE_INDEX[d.stage] <= 6).length;
+    const wonCount = s.deals.filter(d=>STAGE_INDEX[d.stage] >= 6 && STAGE_INDEX[d.stage] <= 8).length;
+    const lostCount = s.deals.filter(d=>d.stage==='Саратов' || d.stage==='Отвал').length;
+    const wonSum = s.deals.filter(d=>STAGE_INDEX[d.stage] >= 6 && STAGE_INDEX[d.stage] <= 8).reduce((a,d)=>a+(d.amount||0),0);
+    return { id: s.id, date: s.date, count: s.deals.length, active, wonCount, lostCount, wonSum };
+  });
+  document.getElementById('historyTable').innerHTML = `
+    <table>
+      <thead>
+        <tr><th>Дата снимка</th><th>Всего сделок</th><th>Активных</th><th>Запущено (оплачено)</th><th>Потеряно</th><th>Сумма запущенных, ₽</th></tr>
+      </thead>
+      <tbody>
+        ${rows.map(r=>`
+          <tr>
+            <td class="bold">${formatSnapDate(r.date)}</td>
+            <td>${r.count}</td>
+            <td>${r.active}</td>
+            <td>${r.wonCount}</td>
+            <td style="color:var(--danger)">${r.lostCount}</td>
+            <td class="right">${fmtRub(r.wonSum)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
+  renderHistoryDiff();
+}
+
+function renderHistoryDiff(){
+  const fromEl = document.getElementById('histFrom');
+  const toEl = document.getElementById('histTo');
+  if(!fromEl || !toEl) return;
+  const opts = getSnapshotOptions();
+  const from = opts.find(o=>o.id===fromEl.value);
+  const to = opts.find(o=>o.id===toEl.value);
+  const el = document.getElementById('historyDiff');
+  if(!from || !to){
+    el.innerHTML = '<p class="muted center">Выберите два снимка для сравнения.</p>';
+    return;
+  }
+  if(from.id === to.id){
+    el.innerHTML = '<p class="muted center">Выберите два разных снимка.</p>';
+    return;
+  }
+  const changes = computeChanges(from.deals, to.deals);
+  const total = changes.stageUp.length + changes.stageDown.length + changes.newDeals.length + changes.lostDeals.length + changes.sumChanges.length;
+  let html = '<div class="flex gap-12 mb-12 flex-wrap">'
+    + '<div class="pill blue">' + from.label + '</div>'
+    + '<span class="small bold">&rarr;</span>'
+    + '<div class="pill green">' + to.label + '</div>'
+    + '<div class="pill gray">Всего изменений: ' + total + '</div>'
+    + '</div>';
+
+  html += '<h4 class="mb-12" style="font-size:14px;font-weight:600;color:var(--success)">&uarr; Переходы вверх по воронке (' + changes.stageUp.length + ')</h4>';
+  html += changes.stageUp.map(c=>changeItemHtml('up', c.deal, c.from, c.to)).join('') || '<p class="muted small">Нет</p>';
+  html += '<div class="divider"></div>';
+
+  html += '<h4 class="mb-12" style="font-size:14px;font-weight:600;color:var(--danger)">&darr; Откаты на раннюю стадию (' + changes.stageDown.length + ')</h4>';
+  html += changes.stageDown.map(c=>changeItemHtml('down', c.deal, c.from, c.to)).join('') || '<p class="muted small">Нет</p>';
+  html += '<div class="divider"></div>';
+
+  html += '<h4 class="mb-12" style="font-size:14px;font-weight:600;color:var(--accent)">+ Новые сделки (' + changes.newDeals.length + ')</h4>';
+  html += changes.newDeals.map(d=>changeItemHtml('new', d, d.previousStage || '—', d.stage)).join('') || '<p class="muted small">Нет</p>';
+  html += '<div class="divider"></div>';
+
+  html += '<h4 class="mb-12" style="font-size:14px;font-weight:600;color:var(--text-muted)">Потери и исчезнувшие (' + changes.lostDeals.length + ')</h4>';
+  html += changes.lostDeals.map(c=>changeItemHtml('lost', c.deal, c.from, c.to)).join('') || '<p class="muted small">Нет</p>';
+  html += '<div class="divider"></div>';
+
+  html += '<h4 class="mb-12" style="font-size:14px;font-weight:600;color:var(--warning)">Изменения сумм (' + changes.sumChanges.length + ')</h4>';
+  html += changes.sumChanges.map(c=>{
+    const sign = c.diff > 0 ? '+' : '';
+    return '<div class="change-item sum"><span class="change-arrow">' + (c.diff > 0 ? '&#9650;' : '&#9660;') + '</span><span class="bold">' + (c.deal.client || c.deal.title) + '</span><span class="muted">было: ' + fmtRubFull(c.oldAmount) + '</span> &rarr; <span class="bold">стало: ' + fmtRubFull(c.newAmount) + '</span> <span class="pill ' + (c.diff > 0 ? 'green' : 'red') + '">' + sign + fmtRubFull(c.diff) + '</span></div>';
+  }).join('') || '<p class="muted small">Нет</p>';
+
+  el.innerHTML = html;
 }
 
 // ============================================================
@@ -2545,7 +2797,7 @@ function saveSettings(){
 const viewTitles = {
   dashboard:'Дашборд', funnel:'Воронка продаж', fridge:'Холодильник (Саратов)',
   calendar:'Платёжный календарь', plan:'План продаж', sources:'Источники лидов',
-  recommendations:'Рекомендации', changes:'Изменения', settings:'Настройки',
+  recommendations:'Рекомендации', changes:'Изменения', history:'Архив', settings:'Настройки',
 };
 
 function navigate(view){
@@ -2564,6 +2816,7 @@ function navigate(view){
     case 'sources': renderSources(); break;
     case 'recommendations': renderRecommendations(); break;
     case 'changes': renderChanges(); break;
+    case 'history': renderHistory(); break;
     case 'settings': renderSettings(); break;
   }
 }
@@ -2608,11 +2861,54 @@ function processCSVText(text){
   // Save previous
   State.previousDeals = State.deals;
   State.prevUpdate = State.lastUpdate;
+  // Push snapshot of previous deals into history (if any and different from last)
+  pushSnapshot(State.previousDeals, State.prevUpdate || new Date().toISOString());
   State.deals = deals;
   State.lastUpdate = new Date().toISOString();
   saveState();
   updateTopbarInfo();
   navigate('dashboard');
+}
+
+// ============================================================
+// HISTORY / ARCHIVE
+// ============================================================
+function trimDeal(d){
+  return {
+    id: d.id,
+    client: d.client,
+    title: d.title,
+    stage: d.stage,
+    amount: d.amount,
+    previousStage: d.previousStage,
+    source: d.source,
+    category: d.category,
+    responsible: d.responsible,
+    createdDate: d.createdDate,
+    stageModifiedDate: d.stageModifiedDate,
+    modifiedDate: d.modifiedDate,
+  };
+}
+
+function pushSnapshot(deals, date){
+  if(!deals || !deals.length) return;
+  const snap = {
+    id: 'snap-' + Date.now(),
+    date: date || new Date().toISOString(),
+    deals: deals.map(trimDeal),
+  };
+  // Skip if identical to last snapshot
+  const last = State.history[State.history.length - 1];
+  if(last && last.deals.length === snap.deals.length){
+    const same = last.deals.every((ld,i)=>{
+      const cd = snap.deals[i];
+      return ld.id === cd.id && ld.stage === cd.stage && ld.amount === cd.amount;
+    });
+    if(same) return;
+  }
+  State.history.push(snap);
+  // Keep last 100 snapshots
+  if(State.history.length > 100) State.history = State.history.slice(State.history.length - 100);
 }
 
 // Handle Excel files (often HTML with .xls extension)
@@ -2749,9 +3045,9 @@ document.addEventListener('DOMContentLoaded', init);
 </script>
 <style>
 .back-to-platform{position:fixed;bottom:18px;right:18px;z-index:9999;display:inline-flex;align-items:center;gap:8px;
-  background:#1e293b;color:#e2e8f0;text-decoration:none;font-size:13px;font-weight:600;
+  background:#000;color:#fff;text-decoration:none;font-size:13px;font-weight:600;
   padding:10px 16px;border-radius:999px;box-shadow:0 6px 18px rgba(0,0,0,.25);transition:.15s;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
-.back-to-platform:hover{background:#3b82f6;color:#fff}
+.back-to-platform:hover{background:var(--accent,#E50071);color:#fff}
 @media print{.back-to-platform{display:none!important}}
 </style>
 <a class="back-to-platform" href="/" title="Вернуться к платформе Бит.Serves">← К платформе</a>

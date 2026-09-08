@@ -28,6 +28,12 @@ const App = (() => {
     const text = await res.text();
     let data = null;
     if (text) { try { data = JSON.parse(text); } catch { data = text; } }
+    if (res.status === 401 && auth) {
+      // Токен недействителен или истёк — сбрасываем сессию и показываем страницу входа
+      clearSession();
+      showLogin();
+      throw new Error("Сессия истекла. Войдите снова.");
+    }
     if (!res.ok) {
       const msg = (data && data.detail) ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail)) : `Ошибка ${res.status}`;
       throw new Error(msg);
@@ -1969,6 +1975,13 @@ const App = (() => {
       if (!departmentsCache.length) departmentsCache = await api("/api/departments", { auth: false });
       if (!gradesCache.length) gradesCache = await api("/api/grades", { auth: false });
     } catch {}
+    if (getToken() && getUser()) {
+      // Проверяем, что токен ещё действителен: если нет — api() сам сбросит сессию и покажет вход
+      try {
+        const me = await api("/api/auth/me");
+        if (me && me.email) setSession(getToken(), me);
+      } catch {}
+    }
     if (getToken() && getUser()) {
       enterApp();
       const pendingRoute = localStorage.getItem("bitserves_pending_route");
