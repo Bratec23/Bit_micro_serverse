@@ -285,6 +285,18 @@ body.view-only #btnPrice,body.view-only .price-panel,body.view-only .price-overl
 .help-close{width:100%;margin-top:8px}
 @media print{.help-bg{display:none!important}}
 
+/* ===== ДИАПАЗОН ЦЕН «от–до» ===== */
+.rng-cell{display:flex;align-items:center;gap:5px;justify-content:flex-end}
+.rng-cell .sep{color:var(--muted);font-size:12px;flex-shrink:0}
+.rng-tgl{background:var(--accent-soft);border:none;color:var(--accent);width:22px;height:22px;border-radius:7px;
+  cursor:pointer;font-size:12px;font-weight:800;line-height:1;flex-shrink:0}
+.rng-tgl:hover{background:var(--accent);color:#fff}
+.rng-tgl.on{background:var(--accent);color:#fff}
+body.view-only .rng-tgl{display:none}
+
+/* подмена полей ввода текстом при печати — чтобы текст не обрезался */
+.print-clone{display:none}
+
 /* ===== ПЕЧАТЬ / PDF ===== */
 @media print{
   @page{size:A4;margin:0}
@@ -293,6 +305,13 @@ body.view-only #btnPrice,body.view-only .price-panel,body.view-only .price-overl
   .page{max-width:none;margin:0;padding:12mm}
   .card,.budget-block{box-shadow:none;border:1px solid rgba(0,0,0,.12);margin-bottom:14px;padding:22px}
   .budget-block{break-inside:avoid}
+  section.card,.cover,.cta-final{break-inside:avoid;page-break-inside:avoid}
+  table.doc thead{display:table-header-group}
+  .bb-head,.sec-num,.sec-tag,h2{break-after:avoid;page-break-after:avoid}
+  body.printing .ed,body.printing .var-name{display:none!important}
+  body.printing .rng-tgl{display:none!important}
+  .print-clone{display:inline;white-space:pre-wrap;word-break:break-word}
+  td.num .print-clone{display:block;text-align:right}
   .var-wrap{border:1px solid rgba(0,0,0,.15);break-inside:avoid}
   .var-name{border-color:transparent!important;font-size:15px}
   table.doc tr{break-inside:avoid}
@@ -516,7 +535,13 @@ body.view-only #btnPrice,body.view-only .price-panel,body.view-only .price-overl
 /* ================= СОСТОЯНИЕ ================= */
 const LS_KEY='kp_trade_draft_v1';
 const $=(id)=>document.getElementById(id);
-const fmt=(n)=>new Intl.NumberFormat('ru-RU').format(Math.round(n))+' ₽';
+const fmtNum=(n)=>new Intl.NumberFormat('ru-RU').format(Math.round(n));
+const fmt=(n)=>fmtNum(n)+' ₽';
+/* диапазон цен: priceTo != null — цена «от price до priceTo» */
+function rowMin(r){ const b=(r.priceTo!=null&&r.priceTo>0)?r.priceTo:r.price; return r.qty*Math.min(r.price,b); }
+function rowMax(r){ return r.qty*Math.max(r.price,r.priceTo||0); }
+function rowSumText(r){ const a=rowMin(r),b=rowMax(r); return b>a?fmt(a)+' – '+fmt(b):fmt(a); }
+function fmtRange(min,max){ return max>min?'от '+fmt(min)+' до '+fmt(max):fmt(min); }
 
 let state={
   fields:{},
@@ -632,13 +657,19 @@ function bindRowInputs(tbody,arr,renderFn){
     const i=+el.dataset.i,f=el.dataset.f;
     arr[i][f]=el.type==='number'?(+el.value||0):el.value;
     if(el.tagName==='TEXTAREA') autoGrow(el);
-    if(f==='qty'||f==='price'){
+    if(f==='qty'||f==='price'||f==='priceTo'){
       // обновляем сумму строки точечно — без полного ре-рендера, чтобы не терять фокус при вводе
       const tds=el.closest('tr').querySelectorAll('td');
       const sumTd=tds[tds.length-2];
-      if(sumTd) sumTd.textContent=fmt(arr[i].qty*arr[i].price);
+      if(sumTd) sumTd.textContent=rowSumText(arr[i]);
     }
     renderTotals(); save();
+  }));
+  tbody.querySelectorAll('[data-rng]').forEach(b=>b.addEventListener('click',()=>{
+    const r=arr[+b.dataset.rng];
+    if(r.priceTo!=null){ r.priceTo=null; }
+    else{ r.priceTo=r.price>0?r.price*2:4410*2; }
+    renderFn(); save();
   }));
   tbody.querySelectorAll('textarea.ed').forEach(t=>requestAnimationFrame(()=>autoGrow(t)));
   tbody.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{
@@ -665,9 +696,13 @@ const KINDS={
   lic:{title:'Лицензии и ПО',badge:'🔑',cls:'blue',add:'+ Добавить позицию',photo:true,total:'Итого лицензии',headName:'Позиция',defName:'Новая лицензия'},
   serv:{title:'Услуги',badge:'🛠️',cls:'green',add:'+ Добавить услугу',photo:false,total:'Итого услуги',headName:'Услуга',defName:'Новая услуга'},
 };
-function sumArr(a){ return a.reduce((s,r)=>s+r.qty*r.price,0); }
+function sumArr(a){ return a.reduce((s,r)=>s+rowMin(r),0); }
+function sumArrMax(a){ return a.reduce((s,r)=>s+rowMax(r),0); }
 function variantTotal(v){
   return (state.show.equip?sumArr(v.equip):0)+(state.show.lic?sumArr(v.lic):0)+(state.show.serv?sumArr(v.serv):0);
+}
+function variantTotalMax(v){
+  return (state.show.equip?sumArrMax(v.equip):0)+(state.show.lic?sumArrMax(v.lic):0)+(state.show.serv?sumArrMax(v.serv):0);
 }
 
 function renderVariants(){
@@ -736,12 +771,13 @@ function renderVariantRows(v,vi,kind,tbody){
   const K=KINDS[kind]; const arr=v[kind];
   tbody.innerHTML='';
   arr.forEach((r,i)=>{
+    const isR=r.priceTo!=null;
     const tr=document.createElement('tr');
     tr.innerHTML=(K.photo?photoCell(r,i):'')+`
       <td><textarea class="ed" rows="1" data-i="${i}" data-f="name">${escH(r.name)}</textarea></td>
       <td class="num"><input class="ed num mono" type="number" min="0" data-i="${i}" data-f="qty" value="${r.qty}" style="width:62px"></td>
-      <td class="num"><input class="ed num mono" type="number" min="0" step="100" data-i="${i}" data-f="price" value="${r.price}" style="width:110px"></td>
-      <td class="num mono" style="font-weight:700">${fmt(r.qty*r.price)}</td>
+      <td class="num"><div class="rng-cell"><input class="ed num mono" type="number" min="0" step="4410" data-i="${i}" data-f="price" value="${r.price}" style="width:88px">${isR?`<span class="sep">–</span><input class="ed num mono" type="number" min="0" step="4410" data-i="${i}" data-f="priceTo" value="${r.priceTo}" style="width:88px">`:''}<button class="rng-tgl no-print${isR?' on':''}" data-rng="${i}" title="${isR?'Убрать диапазон — вернуть фиксированную цену':'Сделать диапазон «от–до»'}">↔</button></div></td>
+      <td class="num mono" style="font-weight:700">${rowSumText(r)}</td>
       <td class="no-print"><button class="row-x" data-del="${i}">×</button></td>`;
     tbody.appendChild(tr);
   });
@@ -753,14 +789,14 @@ function renderTotals(){
   state.variants.forEach((v,vi)=>{
     Object.keys(KINDS).forEach(kind=>{
       const el=document.querySelector(`[data-total="${kind}-${vi}"]`);
-      if(el) el.textContent=fmt(state.show[kind]?sumArr(v[kind]):0);
+      if(el) el.textContent=state.show[kind]?fmtRange(sumArr(v[kind]),sumArrMax(v[kind])):fmt(0);
     });
     if(multi){
       const vt=document.querySelector(`[data-vtotal="${vi}"]`);
-      if(vt) vt.textContent=fmt(variantTotal(v));
+      if(vt) vt.textContent=fmtRange(variantTotal(v),variantTotalMax(v));
     }
   });
-  if(!multi) $('grandTotal').textContent=fmt(variantTotal(state.variants[0]));
+  if(!multi) $('grandTotal').textContent=fmtRange(variantTotal(state.variants[0]),variantTotalMax(state.variants[0]));
 }
 
 $('addVariant').addEventListener('click',()=>{
@@ -1105,6 +1141,24 @@ renderVariants();
 renderStages();
 renderPhoto();
 renderSolution();
+
+/* ===== Печать: подменяем поля ввода текстом, чтобы содержимое не обрезалось ===== */
+function makePrintClones(){
+  removePrintClones();
+  document.querySelectorAll('#document .ed, #document .var-name').forEach(el=>{
+    const s=document.createElement('span');
+    s.className='print-clone'+(el.classList.contains('mono')?' mono':'');
+    s.textContent=(el.type==='number')?fmtNum(+el.value||0):(el.value||'');
+    el.parentNode.insertBefore(s,el.nextSibling);
+  });
+  document.body.classList.add('printing');
+}
+function removePrintClones(){
+  document.querySelectorAll('.print-clone').forEach(s=>s.remove());
+  document.body.classList.remove('printing');
+}
+window.addEventListener('beforeprint',makePrintClones);
+window.addEventListener('afterprint',removePrintClones);
 
 $('btnPdf').addEventListener('click',()=>window.print());
 $('btnHelp').addEventListener('click',()=>{ $('helpModal').style.display='flex'; });
