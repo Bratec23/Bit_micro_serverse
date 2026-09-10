@@ -51,6 +51,45 @@ def _stop_all():
                 pass
 
 
+def kill_stale_project_processes() -> None:
+    """Гасим «сирот» прошлых запусков: все python-процессы, чей путь/команда
+    содержит имя папки проекта (кроме текущего процесса).
+
+    Без этого каждый повторный запуск start.bat плодил копии run_server.py:
+    stop.bat убивал только процессы, слушающие порты, а осиротевшие дочерние
+    процессы оставались жить и ели RAM/CPU.
+    """
+    if os.name != "nt":
+        return
+    me = os.getpid()
+    marker = ROOT.name  # например, "Bit_micro_serverse"
+    ps = (
+        "Get-CimInstance Win32_Process -Filter \"Name like 'python%'\" | "
+        f"Where-Object {{ $_.ProcessId -ne {me} -and ("
+        f"$_.ExecutablePath -like '*{marker}*' -or $_.CommandLine -like '*{marker}*') }} | "
+        "ForEach-Object { Write-Output ('kill ' + $_.ProcessId + ' ' + $_.Name); "
+        "Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+    )
+    try:
+        out = subprocess.run(
+            [_powershell(), "-NoProfile", "-Command", ps],
+            capture_output=True, text=True, timeout=30,
+        )
+        for line in (out.stdout or "").splitlines():
+            print(f"[launcher] stale: {line}", flush=True)
+    except Exception as e:
+        print(f"[launcher] WARNING: не удалось зачистить старые процессы: {e}", flush=True)
+
+
+def _powershell() -> str:
+    import shutil
+    return (
+        shutil.which("powershell")
+        or shutil.which("powershell.exe")
+        or r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+    )
+
+
 atexit.register(_stop_all)
 
 
@@ -60,6 +99,10 @@ def main() -> None:
     parser.add_argument("--port", "-p", type=int,
                         default=int(os.environ.get("PORT", "8000")))
     args, _unknown = parser.parse_known_args()
+
+    # Зачистка «сирот» прошлых запусков — иначе каждый старт плодит копии сервисов
+    kill_stale_project_processes()
+    time.sleep(1)  # даём освободиться портам
 
     import socket
     for name, port, _ in SERVICES:
